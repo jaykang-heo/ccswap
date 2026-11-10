@@ -2,10 +2,12 @@
 
 ``menubar.py`` renders these sections verbatim, so what the menu shows is decided
 here, from the same :class:`~claude_swap.vendors.overview.ToolSummary` the CLI and
-TUI use.  Only operations that are safe without a terminal get a callback: an
-OpenCode account switch (non-interactive, verified by re-listing), a refresh, and
-opening docs.  Muse and Kiro switches need confirmation or an interactive login,
-so their rows say how instead of pretending to be clickable.
+TUI use.  The menu shows numbers only: a usage reading renders its figures, a
+bare failure renders the "—" placeholder, and no state or reason words ever
+appear here (the CLI and TUI keep the full details).  A Muse browser login and a
+Kiro profile are clickable.  A Muse API key is listed but never clickable: it is
+a lane credential run with ``ccswap muse run``.  A Kiro API key stays listed and
+is not clickable, for the same reason it is process-scoped.
 """
 
 from __future__ import annotations
@@ -13,16 +15,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from claude_swap.vendors.core import UsageResult, UsageState
+from claude_swap.vendors.core import AccountView, UsageResult, UsageState
 from claude_swap.vendors.overview import (
     LABELS,
     Overview,
     ToolSummary,
+    go_headline,
     go_lines,
-    headline,
     local_cost_line,
     reset_text,
-    usage_headline,
     window_text,
 )
 
@@ -50,22 +51,43 @@ class MenuSection:
     accounts: list[MenuRow] = field(default_factory=list)
 
 
+def _session_dead(usage: UsageResult) -> bool:
+    return usage.state is UsageState.UNAUTHENTICATED
+
+
+def _row_switchable(tool: str, view: AccountView, usage: UsageResult) -> bool:
+    if switchable(tool, view.active, view.provider, view.kind, view.registered):
+        return True
+    # The file still names this login after Muse drops the session. A click rewrites
+    # the stored token, which a plain "already active" row would refuse to do.
+    return (
+        _session_dead(usage)
+        and tool == "muse"
+        and view.kind == "browser"
+        and view.registered
+        and view.active is True
+    )
+
+
 def switchable(
     tool: str, active: bool | None, provider: str | None, kind: str = "", registered: bool = True
 ) -> bool:
     """Can a click switch to this account without a terminal?
 
-    OpenCode: native ``auth switch``.  Muse: ccswap swaps the login it keeps (browser) or
-    stores the key (API key).  Kiro: another profile of the signed-in login, via Kiro's own
-    picker.  A different Kiro *login* still needs an interactive sign-in, and a Kiro API
-    key is process-scoped (``ccswap kiro run``).
+    OpenCode: native ``auth switch``.  Muse: a browser login ccswap keeps a token for.
+    A Muse API key is listed but never clickable (``ccswap muse run``).  Kiro:
+    another profile of the signed-in login, via Kiro's own picker.  A different Kiro
+    *login* still needs an interactive sign-in, and a Kiro API key is process-scoped
+    (``ccswap kiro run``).
     """
     if active is True:
         return False
     if tool == "opencode":
         return active is False and bool(provider)
     if tool == "muse":
-        return registered and kind in ("browser", "api-key")
+        # An API key is `ccswap muse run`, not a login.  A click used to store the key
+        # and replace the browser session, and the row could only say "usage unavailable".
+        return registered and kind == "browser"
     if tool == "kiro":
         return registered and kind == "login"
     return False
@@ -81,6 +103,40 @@ def _ago(ts: float | None, now: float) -> str:
     return f"{datetime.fromtimestamp(ts).strftime('%H:%M')} ({span})"
 
 
+_REFUSED_SUFFIX = " · last request refused"
+
+
+def _menu_numbers(result: UsageResult) -> str | None:
+    """This reading's figures with no state words: windows, else the Go/local line."""
+    if result.windows:
+        return " · ".join(window_text(w, short=True) for w in result.windows[:2])
+    text = go_headline(result)
+    if text is not None:
+        return text.removesuffix(_REFUSED_SUFFIX)
+    return local_cost_line(result)
+
+
+def menu_usage_text(result: UsageResult | None) -> str:
+    """One account's menu text: its numbers, or "—" when there is nothing to show.
+
+    A past reading keeps its numbers with no state label; a bare failure becomes
+    the placeholder, so failure words structurally cannot reach the menu bar.
+    """
+    if result is not None and (numbers := _menu_numbers(result)):
+        return numbers
+    return "—"
+
+
+def menu_headline(summary: ToolSummary) -> str:
+    """A section title's figures: like overview.headline without the state words."""
+    if not summary.installed and not summary.accounts:
+        return "not installed"
+    primary = summary.primary_usage
+    if primary is None:
+        return "—"
+    return menu_usage_text(primary)
+
+
 def usage_rows(tool: str, result: UsageResult, now: float, indent: str = "") -> list[MenuRow]:
     rows: list[MenuRow] = []
     if result.plan:
@@ -91,6 +147,8 @@ def usage_rows(tool: str, result: UsageResult, now: float, indent: str = "") -> 
         if reset:
             rows.append(MenuRow(f"{indent}    {reset}", tool))
     for line in go_lines(result):
+        if "refused" in line.lower():
+            continue  # the menu never names a refused request; the CLI/TUI detail keeps it
         rows.append(
             MenuRow(
                 f"{indent}{line.strip() if not line.startswith('  ') else '    ' + line.strip()}"[
@@ -111,14 +169,8 @@ def usage_rows(tool: str, result: UsageResult, now: float, indent: str = "") -> 
                         tool,
                     )
                 )
-    if result.state is UsageState.STALE:
-        rows.append(
-            MenuRow(f"{indent}Stale — refresh failed: {result.error or 'unknown reason'}", tool)
-        )
-    elif result.state is not UsageState.AVAILABLE:
-        rows.append(
-            MenuRow(f"{indent}{usage_headline(result).capitalize()}: {result.reason}"[:110], tool)
-        )
+    # No state or reason row: a past reading shows its numbers above with no label,
+    # and a bare failure shows no usage rows at all (callers render "—").
     if result.observed_at:
         rows.append(MenuRow(f"{indent}Updated {_ago(result.observed_at, now)}", tool))
     return rows
@@ -127,7 +179,7 @@ def usage_rows(tool: str, result: UsageResult, now: float, indent: str = "") -> 
 def section_for(summary: ToolSummary, docs: str | None, now: float) -> MenuSection:
     tool = summary.tool
     label = LABELS.get(tool, summary.label)
-    section = MenuSection(tool, f"{label} · {headline(summary)}")
+    section = MenuSection(tool, f"{label} · {menu_headline(summary)}")
     rows = section.rows
     if not summary.installed:
         rows.append(MenuRow(f"{label} is not installed", tool))
@@ -153,7 +205,7 @@ def section_for(summary: ToolSummary, docs: str | None, now: float) -> MenuSecti
     if auth.get("envKeyPresent"):
         rows.append(MenuRow("An API key in the environment overrides the stored login", tool))
     if summary.error:
-        rows.append(MenuRow(f"Error: {summary.error}"[:110], tool))
+        rows.append(MenuRow(summary.error[:110], tool))
     if summary.tool_usage is not None:
         rows.append(None)
         rows.extend(usage_rows(tool, summary.tool_usage, now))
@@ -162,7 +214,7 @@ def section_for(summary: ToolSummary, docs: str | None, now: float) -> MenuSecti
     if not summary.accounts:
         rows.append(MenuRow(f"  No {label} accounts registered", tool))
     for number, (view, usage) in enumerate(summary.accounts, 1):
-        can = switchable(tool, view.active, view.provider, view.kind, view.registered)
+        can = _row_switchable(tool, view, usage)
         selector = (
             (view.identity.get("id") or view.identity.get("account"))
             if tool == "opencode"
@@ -174,7 +226,7 @@ def section_for(summary: ToolSummary, docs: str | None, now: float) -> MenuSecti
             label += f"  {email}"
         if view.identity.get("profileArn"):
             label += f"  [AWS {view.identity['profileArn'].split(':')[4]}]"
-        label += f"  {usage_headline(usage)}"
+        label += f"  {menu_usage_text(usage)}"
         section.accounts.append(
             MenuRow(
                 label[:140],
@@ -182,7 +234,7 @@ def section_for(summary: ToolSummary, docs: str | None, now: float) -> MenuSecti
                 action="switch" if can else None,
                 selector=selector if can else None,
                 provider=view.provider,
-                checked=bool(view.active),
+                checked=bool(view.active) and not _session_dead(usage),
                 raw=tool == "opencode" and not view.registered,
             )
         )
@@ -193,9 +245,17 @@ def section_for(summary: ToolSummary, docs: str | None, now: float) -> MenuSecti
             if view.provider and not view.alias.startswith(f"{view.provider}/")
             else ""
         )
-        ok = switchable(tool, view.active, view.provider, view.kind, view.registered)
-        hint = "" if ok or view.active else ("  — switch in terminal" if tool != "opencode" else "")
-        text = f"  {mark} {where}{view.alias} · {usage_headline(usage)}{hint}"
+        ok = _row_switchable(tool, view, usage)
+        # A Muse API key is listed for the captain's "every account" view but stays
+        # inert: no click and no "switch in terminal" hint (it runs, not switches).
+        inert_key = tool == "muse" and view.kind == "api-key"
+        hint = (
+            ""
+            if ok or view.active or inert_key
+            else ("  — switch in terminal" if tool != "opencode" else "")
+        )
+        mark = "○" if _session_dead(usage) else mark
+        text = f"  {mark} {where}{view.alias} · {menu_usage_text(usage)}{hint}"
         if not ok:
             selector = None
         elif tool == "opencode":
@@ -210,7 +270,7 @@ def section_for(summary: ToolSummary, docs: str | None, now: float) -> MenuSecti
                 selector=selector,
                 raw=tool == "opencode" and not view.registered,
                 provider=view.provider,
-                checked=bool(view.active),
+                checked=bool(view.active) and not _session_dead(usage),
             )
         )
     rows.append(None)
