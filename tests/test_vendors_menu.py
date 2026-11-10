@@ -287,6 +287,46 @@ def test_menu_usage_text_is_numbers_or_placeholder():
     assert menu_usage_text(None) == "—"
 
 
+def muse_allowance(now=NOW):
+    return UsageResult(
+        UsageState.AVAILABLE,
+        windows=(
+            UsageWindow("five-hour", "5-hour window", "percent", used_percent=101.0,
+                        resets_at=now + 12 * 60),
+            UsageWindow("weekly", "Weekly", "percent", used_percent=43.0,
+                        resets_at=now + 3 * 86400 + 15 * 3600),
+        ),
+        source="muse usage --json",
+        authoritative=True,
+        observed_at=now - 60,
+    )
+
+
+def test_menu_usage_text_shows_reset_countdown_like_claude_code():
+    assert menu_usage_text(muse_allowance()) == "5h 101% · wk 43%"
+    assert menu_usage_text(muse_allowance(), NOW) == "5h 101% (12m) · wk 43% (3d 15h)"
+
+
+def test_menu_usage_text_skips_missing_or_passed_resets():
+    windows = (
+        UsageWindow("five-hour", "5-hour window", "percent", used_percent=50.0,
+                    resets_at=NOW - 60),
+        UsageWindow("weekly", "Weekly", "percent", used_percent=43.0),
+    )
+    result = UsageResult(UsageState.AVAILABLE, windows=windows, source="muse usage --json")
+    assert menu_usage_text(result, NOW) == "5h 50% · wk 43%"
+
+
+def test_muse_account_rows_show_countdown_but_title_does_not():
+    view = AccountView("muse", "jaykangheo", "browser",
+                       identity={"email": "jaykangheo@gmail.com"}, active=True)
+    summary = ToolSummary("muse", "Muse Code", installed=True,
+                          accounts=[(view, muse_allowance())])
+    section = section_for(summary, None, NOW)
+    assert section.title == "Muse Code · 5h 101% · wk 43%"
+    assert section.accounts[0].label.endswith("5h 101% (12m) · wk 43% (3d 15h)")
+
+
 def go_result(state=UsageState.AVAILABLE):
     return UsageResult(
         state,
