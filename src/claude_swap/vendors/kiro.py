@@ -472,6 +472,18 @@ def _seed_isolated_db(live: Path, dest: Path, arn: str) -> None:
     os.chmod(dest, 0o600)
 
 
+def _share_model_cache(home: Path, real_home: Path | None = None) -> None:
+    """Point the throwaway HOME at the user's semantic-search model cache.
+
+    A fresh HOME makes kiro-cli download its ~90 MB embedding model before it
+    answers, which took 49 s against 6 s with the cache (measured, kiro-cli
+    3.1.0) and pushed the probe past its timeout.  The cache holds no credential.
+    """
+    cache = (real_home or Path.home()) / ".semantic_search"
+    if cache.is_dir():
+        (home / ".semantic_search").symlink_to(cache, target_is_directory=True)
+
+
 class KiroAdapter(ToolAdapter):
     key = "kiro"
     label = "Kiro CLI"
@@ -921,6 +933,7 @@ class KiroAdapter(ToolAdapter):
                     UsageState.ERROR,
                     "Could not prepare an isolated Kiro profile; the live login was left unchanged",
                 )
+            _share_model_cache(home)
             result = runner.run(
                 [info.exe, "chat", "--no-interactive", "--v2", "/usage"],
                 timeout=40,
