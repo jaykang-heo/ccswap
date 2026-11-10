@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from claude_swap.vendors.core import AccountView, UsageResult, UsageState
+from claude_swap.vendors.core import AccountView, UsageResult, UsageState, UsageWindow
 from claude_swap.vendors.overview import (
     LABELS,
     Overview,
@@ -120,23 +120,50 @@ def _ago(ts: float | None, now: float) -> str:
 _REFUSED_SUFFIX = " · last request refused"
 
 
-def _menu_numbers(result: UsageResult) -> str | None:
+def _countdown(window: UsageWindow, now: float) -> str | None:
+    """Live `3d 15h` until this window resets; None when unknown or passed.
+
+    Same shape as the Claude/Codex menu's countdown, derived from the absolute
+    ``resets_at`` so it stays correct between refetches.
+    """
+    if window.resets_at is None:
+        return None
+    remaining = int(window.resets_at - now)
+    if remaining <= 0:
+        return None
+    days, rem = divmod(remaining, 86400)
+    hours, rem = divmod(rem, 3600)
+    if days > 0:
+        return f"{days}d {hours}h"
+    if hours > 0:
+        return f"{hours}h {rem // 60}m"
+    return f"{rem // 60}m"
+
+
+def _menu_numbers(result: UsageResult, now: float | None = None) -> str | None:
     """This reading's figures with no state words: windows, else the Go/local line."""
     if result.windows:
-        return " · ".join(window_text(w, short=True) for w in result.windows[:2])
+        parts = []
+        for w in result.windows[:2]:
+            text = window_text(w, short=True)
+            if now is not None and (span := _countdown(w, now)):
+                text += f" ({span})"  # time until this window resets, like Claude Code's
+            parts.append(text)
+        return " · ".join(parts)
     text = go_headline(result)
     if text is not None:
         return text.removesuffix(_REFUSED_SUFFIX)
     return local_cost_line(result)
 
 
-def menu_usage_text(result: UsageResult | None) -> str:
+def menu_usage_text(result: UsageResult | None, now: float | None = None) -> str:
     """One account's menu text: its numbers, or "—" when there is nothing to show.
 
     A past reading keeps its numbers with no state label; a bare failure becomes
     the placeholder, so failure words structurally cannot reach the menu bar.
+    Pass ``now`` for account rows so windows show their reset countdown.
     """
-    if result is not None and (numbers := _menu_numbers(result)):
+    if result is not None and (numbers := _menu_numbers(result, now)):
         return numbers
     return "—"
 
@@ -241,7 +268,7 @@ def section_for(summary: ToolSummary, docs: str | None, now: float) -> MenuSecti
             label += f"  {email}"
         if view.identity.get("profileArn"):
             label += f"  [AWS {view.identity['profileArn'].split(':')[4]}]"
-        label += f"  {menu_usage_text(usage)}"
+        label += f"  {menu_usage_text(usage, now)}"
         section.accounts.append(
             MenuRow(
                 label[:140],
@@ -270,7 +297,7 @@ def section_for(summary: ToolSummary, docs: str | None, now: float) -> MenuSecti
             else ("  — switch in terminal" if tool != "opencode" else "")
         )
         mark = "○" if _session_dead(usage) else mark
-        text = f"  {mark} {where}{view.alias} · {menu_usage_text(usage)}{hint}"
+        text = f"  {mark} {where}{view.alias} · {menu_usage_text(usage, now)}{hint}"
         if not ok:
             selector = None
         elif tool == "opencode":
