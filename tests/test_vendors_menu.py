@@ -187,6 +187,26 @@ def test_muse_api_key_accounts_are_listed_but_never_clickable():
     assert "lane-key" in detail and "switch in terminal" not in detail
 
 
+def test_a_key_minted_by_a_listed_login_is_shown_on_that_login_not_as_another_account():
+    reading = UsageResult(
+        UsageState.AVAILABLE,
+        windows=(UsageWindow("five-hour", "5-hour window", "percent", used_percent=20),),
+    )
+    accounts = [
+        (AccountView("muse", "mis", "browser", identity={"email": "m@x.com"}), reading),
+        (AccountView("muse", "jay-sub", "api-key", identity={"login": "jay"}), reading),
+        (AccountView("muse", "jay", "browser", identity={"email": "j@x.com"}), reading),
+    ]
+    section = section_for(
+        ToolSummary("muse", "Muse Code", installed=True, accounts=accounts), None, NOW
+    )
+    top = [r.label for r in section.accounts]
+    assert len(top) == 2
+    assert "jay-sub" not in top[0] and top[1].endswith("(+ key jay-sub)")
+    detail = [r.label for r in section.rows if r and "jay-sub" in r.label]
+    assert detail and all("(+ key jay-sub)" in label for label in detail)
+
+
 def test_a_dead_muse_login_is_not_checked_and_can_be_restored():
     accounts = [
         (

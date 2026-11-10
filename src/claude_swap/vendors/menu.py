@@ -69,6 +69,29 @@ def _row_switchable(tool: str, view: AccountView, usage: UsageResult) -> bool:
     )
 
 
+def _fold_linked_keys(accounts):
+    """Rows for real accounts: a key linked to a listed login is that login, not another.
+
+    A Muse API key minted by a browser login (identity ``login``) bills the same
+    subscription and reads the same usage, so it is noted on the login's row.
+    """
+    logins = {v.alias for v, _ in accounts if v.kind != "api-key"}
+    keys_of: dict[str, list[str]] = {}
+    shown = []
+    for view, usage in accounts:
+        owner = view.identity.get("login") if view.kind == "api-key" else None
+        if owner in logins:
+            keys_of.setdefault(owner, []).append(view.alias)
+        else:
+            shown.append((view, usage))
+    return shown, keys_of
+
+
+def _key_note(keys_of: dict[str, list[str]], alias: str) -> str:
+    keys = keys_of.get(alias)
+    return f"  (+ key {', '.join(keys)})" if keys else ""
+
+
 def switchable(
     tool: str, active: bool | None, provider: str | None, kind: str = "", registered: bool = True
 ) -> bool:
@@ -213,7 +236,8 @@ def section_for(summary: ToolSummary, docs: str | None, now: float) -> MenuSecti
     rows.append(MenuRow("Accounts", tool))
     if not summary.accounts:
         rows.append(MenuRow(f"  No {label} accounts registered", tool))
-    for number, (view, usage) in enumerate(summary.accounts, 1):
+    shown, keys_of = _fold_linked_keys(summary.accounts)
+    for number, (view, usage) in enumerate(shown, 1):
         can = _row_switchable(tool, view, usage)
         selector = (
             (view.identity.get("id") or view.identity.get("account"))
@@ -226,7 +250,7 @@ def section_for(summary: ToolSummary, docs: str | None, now: float) -> MenuSecti
             label += f"  {email}"
         if view.identity.get("profileArn"):
             label += f"  [AWS {view.identity['profileArn'].split(':')[4]}]"
-        label += f"  {menu_usage_text(usage)}"
+        label += f"  {menu_usage_text(usage)}{_key_note(keys_of, view.alias)}"
         section.accounts.append(
             MenuRow(
                 label[:140],
@@ -238,7 +262,7 @@ def section_for(summary: ToolSummary, docs: str | None, now: float) -> MenuSecti
                 raw=tool == "opencode" and not view.registered,
             )
         )
-    for view, usage in summary.accounts:
+    for view, usage in shown:
         mark = {True: "●", False: "○", None: "?"}[view.active]
         where = (
             f"{view.provider}/"
@@ -255,7 +279,10 @@ def section_for(summary: ToolSummary, docs: str | None, now: float) -> MenuSecti
             else ("  — switch in terminal" if tool != "opencode" else "")
         )
         mark = "○" if _session_dead(usage) else mark
-        text = f"  {mark} {where}{view.alias} · {menu_usage_text(usage)}{hint}"
+        text = (
+            f"  {mark} {where}{view.alias} · {menu_usage_text(usage)}"
+            f"{_key_note(keys_of, view.alias)}{hint}"
+        )
         if not ok:
             selector = None
         elif tool == "opencode":
