@@ -202,9 +202,8 @@ def test_a_key_minted_by_a_listed_login_is_shown_on_that_login_not_as_another_ac
     )
     top = [r.label for r in section.accounts]
     assert len(top) == 2
-    assert "jay-sub" not in top[0] and top[1].endswith("(+ key jay-sub)")
-    detail = [r.label for r in section.rows if r and "jay-sub" in r.label]
-    assert detail and all("(+ key jay-sub)" in label for label in detail)
+    assert not any("jay-sub" in label or "key" in label for label in top)
+    assert not any(r and "jay-sub" in r.label for r in section.rows)
 
 
 def test_a_dead_muse_login_is_not_checked_and_can_be_restored():
