@@ -265,6 +265,9 @@ def _filtered_provider_stats(
     return _per_account_unavailable()
 
 
+TOOL_READING_REUSE_S = 60.0
+
+
 class OpenCodeAdapter(ToolAdapter):
     key = "opencode"
     label = "OpenCode"
@@ -281,6 +284,9 @@ class OpenCodeAdapter(ToolAdapter):
         self._probe: dict[str, bool] | None = None
         self._db: bool | None = None
         self._probed_at = 0.0
+        # The last tool-level reading: an account's share is cut from it rather than
+        # re-scanning the whole message database (one scan takes tens of seconds).
+        self._tool_reading: tuple[float, UsageResult] | None = None
 
     # ---- probing -----------------------------------------------------
 
@@ -677,6 +683,11 @@ class OpenCodeAdapter(ToolAdapter):
             return self._account_usage(record, context)
         if record is not None:
             return _per_account_unavailable()
+        result = self._tool_usage()
+        self._tool_reading = (time.monotonic(), result)
+        return result
+
+    def _tool_usage(self) -> UsageResult:
         info = self.require_installed()
         if not self._db_supported(info.exe):
             stats = self.local_stats()
@@ -740,7 +751,11 @@ class OpenCodeAdapter(ToolAdapter):
             return UsageResult(UsageState.ERROR, str(exc))
         if len(rows) != 1 or not _record_matches(record, rows[0]):
             return _per_account_unavailable()
-        tool_result = self.usage(None, None)
+        recent = self._tool_reading
+        if recent is not None and time.monotonic() - recent[0] < TOOL_READING_REUSE_S:
+            tool_result = recent[1]
+        else:
+            tool_result = self.usage(None, None)
         if tool_result.state is not UsageState.AVAILABLE:
             return dataclasses.replace(tool_result, attributed_to=record.alias)
         return _filtered_provider_stats(tool_result, provider, record.alias)
