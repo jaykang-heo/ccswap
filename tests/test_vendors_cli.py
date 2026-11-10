@@ -405,3 +405,13 @@ def test_run_at_key_without_an_api_key_account_refuses(service, capsys, runner):
     assert code != 0
     assert "refusing to run on the global login" in err
     assert len(runner.calls) == n
+
+
+def test_usage_check_fails_a_tool_that_timed_out():
+    from claude_swap.vendors.cli import usage_problems
+    from claude_swap.vendors.overview import ToolSummary
+
+    # A timed-out collection reads as not installed; the gate must not pass it.
+    assert usage_problems([ToolSummary("opencode", "OpenCode", error="timed out")], {}) == [
+        "opencode: timed out"
+    ]

@@ -434,6 +434,9 @@ def usage_problems(summaries, env) -> list[str]:
     """
     problems = []
     for summary in summaries:
+        if summary.error:
+            problems.append(f"{summary.tool}: {summary.error}")
+            continue
         if not summary.installed:
             continue
         backend = env.get("TBH_CREDENTIAL_BACKEND")

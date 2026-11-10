@@ -491,3 +491,22 @@ def test_second_account_for_a_provider_is_rejected_at_register():
     assert record.provider == "openai"
     same, _ = adapter.register("w", provider="anthropic", account="work", context=[first])
     assert same.alias == "w"
+
+
+def test_account_reading_reuses_the_recent_tool_scan(monkeypatch):
+    from claude_swap.vendors.opencode import OpenCodeAdapter
+    from claude_swap.vendors.core import UsageResult, UsageState
+
+    adapter = OpenCodeAdapter()
+    scans = []
+    monkeypatch.setattr(
+        adapter, "_tool_usage", lambda: scans.append(1) or UsageResult(UsageState.UNAVAILABLE, "x")
+    )
+    monkeypatch.setattr(adapter, "discover", lambda: [{"provider": "go", "id": "a"}])
+    monkeypatch.setattr("claude_swap.vendors.opencode._record_matches", lambda r, row: True)
+    from claude_swap.vendors.core import AccountRecord
+
+    record = AccountRecord("opencode", "go-acct", "provider-account", provider="go")
+    adapter.usage(None, None)
+    adapter.usage(record, None, context=[record])
+    assert scans == [1]
