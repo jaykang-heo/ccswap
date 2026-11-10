@@ -624,3 +624,19 @@ def test_picker_that_lands_elsewhere_is_not_success():
     b, _ = adapter.register("acct-b", profile_arn=ARN_B)
     with pytest.raises(VendorError, match="276673691073"):
         adapter.switch(b, None, assume_yes=False, interactive=False, context=[b])
+
+
+def test_isolated_home_shares_only_the_model_cache(tmp_path):
+    from claude_swap.vendors.kiro import _share_model_cache
+
+    real = tmp_path / "real"
+    (real / ".semantic_search" / "models").mkdir(parents=True)
+    home = tmp_path / "iso"
+    home.mkdir()
+    _share_model_cache(home, real)
+    assert (home / ".semantic_search").resolve() == (real / ".semantic_search").resolve()
+
+    bare = tmp_path / "iso2"
+    bare.mkdir()
+    _share_model_cache(bare, tmp_path / "nobody")
+    assert not (bare / ".semantic_search").exists()
