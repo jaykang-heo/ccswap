@@ -1,0 +1,327 @@
+{
+  "schemaVersion": 1,
+  "tools": [
+    {
+      "tool": "claude",
+      "label": "Claude Code",
+      "installed": true,
+      "version": "2.1.322",
+      "surface": "dashboard",
+      "headline": "no active account",
+      "error": null,
+      "refreshedAt": 1794383045.847326,
+      "auth": {},
+      "usage": null,
+      "accounts": [
+        {
+          "alias": "dev",
+          "kind": "oauth",
+          "provider": null,
+          "identity": {
+            "number": "1",
+            "email": "alice@example.com",
+            "organization": "Acme"
+          },
+          "registered": true,
+          "active": false,
+          "note": "",
+          "usage": {
+            "state": "unauthenticated",
+            "reason": "No stored credential for this account",
+            "hint": "",
+            "plan": null,
+            "source": "ccswap claude usage store",
+            "authoritative": true,
+            "attributedTo": "dev",
+            "observedAt": 1893456000.0002759,
+            "error": "No stored credential for this account",
+            "windows": [],
+            "observations": []
+          },
+          "headline": "sign-in required"
+        },
+        {
+          "alias": "2",
+          "kind": "oauth",
+          "provider": null,
+          "identity": {
+            "number": "2",
+            "email": "bob@example.com"
+          },
+          "registered": true,
+          "active": false,
+          "note": "",
+          "usage": {
+            "state": "unauthenticated",
+            "reason": "No stored credential for this account",
+            "hint": "",
+            "plan": null,
+            "source": "ccswap claude usage store",
+            "authoritative": true,
+            "attributedTo": "bob@example.com",
+            "observedAt": null,
+            "error": "No stored credential for this account",
+            "windows": [],
+            "observations": []
+          },
+          "headline": "sign-in required"
+        }
+      ]
+    },
+    {
+      "tool": "codex",
+      "label": "Codex",
+      "installed": true,
+      "version": null,
+      "surface": "dashboard",
+      "headline": "no active account",
+      "error": null,
+      "refreshedAt": 1794383045.8522592,
+      "auth": {},
+      "usage": null,
+      "accounts": [
+        {
+          "alias": "1",
+          "kind": "oauth",
+          "provider": null,
+          "identity": {
+            "number": "1",
+            "email": "ci@example.com",
+            "organization": "Codex"
+          },
+          "registered": true,
+          "active": false,
+          "note": "",
+          "usage": {
+            "state": "unavailable",
+            "reason": "stored Codex auth.json is missing",
+            "hint": "",
+            "plan": null,
+            "source": "ccswap codex usage store",
+            "authoritative": false,
+            "attributedTo": "ci@example.com",
+            "observedAt": null,
+            "error": null,
+            "windows": [],
+            "observations": []
+          },
+          "headline": "usage unavailable"
+        }
+      ]
+    },
+    {
+      "tool": "muse",
+      "label": "Muse Code",
+      "installed": true,
+      "version": "9.9.9-fixture",
+      "surface": "tool",
+      "headline": "usage error",
+      "error": null,
+      "refreshedAt": 1794383045.846682,
+      "auth": {
+        "envKeyPresent": false,
+        "storedCredential": false,
+        "precedence": "META_API_KEY > stored API key > stored browser session",
+        "methods": [
+          "browser",
+          "api-key"
+        ],
+        "identityExposed": false
+      },
+      "usage": {
+        "state": "error",
+        "reason": "muse usage failed: fixture muse: unsupported",
+        "hint": "",
+        "plan": null,
+        "source": "",
+        "authoritative": false,
+        "attributedTo": null,
+        "observedAt": null,
+        "error": null,
+        "windows": [],
+        "observations": []
+      },
+      "accounts": [
+        {
+          "alias": "work",
+          "kind": "api-key",
+          "provider": null,
+          "identity": {
+            "email": "m@example.com"
+          },
+          "registered": true,
+          "active": null,
+          "note": "last switched to by ccswap; unconfirmed (muse cannot report its key)",
+          "usage": {
+            "state": "unavailable",
+            "reason": "That key is not the subscription key of any registered Muse login. Add that login with `ccswap muse add <alias> --browser`, then re-add this key.",
+            "hint": "",
+            "plan": null,
+            "source": "",
+            "authoritative": false,
+            "attributedTo": null,
+            "observedAt": null,
+            "error": null,
+            "windows": [],
+            "observations": []
+          },
+          "headline": "usage unavailable"
+        }
+      ]
+    },
+    {
+      "tool": "kiro",
+      "label": "Kiro CLI",
+      "installed": true,
+      "version": "9.9.9-fixture",
+      "surface": "tool",
+      "headline": "usage not reported",
+      "error": null,
+      "refreshedAt": 1794383045.853396,
+      "auth": {
+        "loggedIn": false,
+        "accountType": null,
+        "email": null,
+        "startUrl": null,
+        "region": null,
+        "envKeyPresent": false,
+        "methods": [
+          "google",
+          "github",
+          "builder-id",
+          "identity-center",
+          "api-key"
+        ],
+        "switchRestartNote": "running kiro-cli chat sessions keep the old login until restarted"
+      },
+      "usage": {
+        "state": "unsupported",
+        "reason": "This kiro-cli has no --v2 harness; /usage could be sent to the model as a prompt, so ccswap does not run it",
+        "hint": "Run `kiro-cli chat` and type /usage",
+        "plan": null,
+        "source": "",
+        "authoritative": false,
+        "attributedTo": null,
+        "observedAt": null,
+        "error": null,
+        "windows": [],
+        "observations": []
+      },
+      "accounts": []
+    },
+    {
+      "tool": "opencode",
+      "label": "OpenCode",
+      "installed": true,
+      "version": "9.9.9-fixture",
+      "surface": "tool",
+      "headline": "usage unavailable",
+      "error": null,
+      "refreshedAt": 1794383045.860986,
+      "auth": {
+        "accountSwitching": false,
+        "jsonListing": false,
+        "providerConfig": {
+          "readable": true,
+          "model": null,
+          "configuredProviders": []
+        }
+      },
+      "usage": {
+        "state": "unavailable",
+        "reason": "`opencode stats` failed: fixture opencode: unsupported",
+        "hint": "Provider quotas are not reported by OpenCode. ",
+        "plan": null,
+        "source": "",
+        "authoritative": false,
+        "attributedTo": null,
+        "observedAt": null,
+        "error": null,
+        "windows": [],
+        "observations": []
+      },
+      "accounts": [
+        {
+          "alias": "oc",
+          "kind": "login",
+          "provider": "anthropic",
+          "identity": {
+            "account": "oc-acct"
+          },
+          "registered": true,
+          "active": null,
+          "note": "no longer listed by OpenCode",
+          "usage": {
+            "state": "stale",
+            "reason": "",
+            "hint": "",
+            "plan": null,
+            "source": "opencode local stats",
+            "authoritative": false,
+            "attributedTo": "oc",
+            "observedAt": 1794340000.0,
+            "error": "OpenCode records usage per provider and model, not per account",
+            "windows": [
+              {
+                "key": "local-tokens",
+                "label": "local tokens",
+                "unit": "tokens",
+                "used": 1500.0,
+                "limit": null,
+                "remaining": null,
+                "usedPercent": null,
+                "resetsAt": null,
+                "scope": "local",
+                "note": "",
+                "resetsOn": null
+              }
+            ],
+            "observations": []
+          },
+          "headline": "stale \u00b7 local tokens 1,500 tokens used"
+        }
+      ]
+    },
+    {
+      "tool": "agy",
+      "label": "Antigravity",
+      "installed": true,
+      "version": "1.5.5",
+      "surface": "dashboard",
+      "headline": "no active account",
+      "error": null,
+      "refreshedAt": 1794383045.8901372,
+      "auth": {},
+      "usage": null,
+      "accounts": [
+        {
+          "alias": "1",
+          "kind": "oauth",
+          "provider": null,
+          "identity": {
+            "number": "1",
+            "email": "agy@example.com",
+            "organization": "Antigravity"
+          },
+          "registered": true,
+          "active": false,
+          "note": "",
+          "usage": {
+            "state": "unavailable",
+            "reason": "Antigravity usage command failed",
+            "hint": "",
+            "plan": null,
+            "source": "ccswap agy usage store",
+            "authoritative": false,
+            "attributedTo": "agy@example.com",
+            "observedAt": null,
+            "error": null,
+            "windows": [],
+            "observations": []
+          },
+          "headline": "usage unavailable"
+        }
+      ]
+    }
+  ]
+}

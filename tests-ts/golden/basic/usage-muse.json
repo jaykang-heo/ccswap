@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "tools": [
+    {
+      "tool": "muse",
+      "label": "Muse Code",
+      "installed": true,
+      "version": "9.9.9-fixture",
+      "surface": "tool",
+      "headline": "usage error",
+      "error": null,
+      "refreshedAt": 1794383045.9030342,
+      "auth": {
+        "envKeyPresent": false,
+        "storedCredential": false,
+        "precedence": "META_API_KEY > stored API key > stored browser session",
+        "methods": [
+          "browser",
+          "api-key"
+        ],
+        "identityExposed": false
+      },
+      "usage": {
+        "state": "error",
+        "reason": "muse usage failed: fixture muse: unsupported",
+        "hint": "",
+        "plan": null,
+        "source": "",
+        "authoritative": false,
+        "attributedTo": null,
+        "observedAt": null,
+        "error": null,
+        "windows": [],
+        "observations": []
+      },
+      "accounts": [
+        {
+          "alias": "work",
+          "kind": "api-key",
+          "provider": null,
+          "identity": {
+            "email": "m@example.com"
+          },
+          "registered": true,
+          "active": null,
+          "note": "last switched to by ccswap; unconfirmed (muse cannot report its key)",
+          "usage": {
+            "state": "unavailable",
+            "reason": "That key is not the subscription key of any registered Muse login. Add that login with `ccswap muse add <alias> --browser`, then re-add this key.",
+            "hint": "",
+            "plan": null,
+            "source": "",
+            "authoritative": false,
+            "attributedTo": null,
+            "observedAt": null,
+            "error": null,
+            "windows": [],
+            "observations": []
+          },
+          "headline": "usage unavailable"
+        }
+      ]
+    }
+  ]
+}

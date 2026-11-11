@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "path": "/Users/leo/workspace/ccswap-wt-p6-ts/tests-ts/fixtures/basic/home/.claude-swap-backup/settings.json",
+  "settings": [
+    {
+      "key": "autoswitch.threshold",
+      "value": 80.0,
+      "isSet": true
+    },
+    {
+      "key": "autoswitch.weeklyThreshold",
+      "value": null,
+      "isSet": false
+    },
+    {
+      "key": "autoswitch.intervalSeconds",
+      "value": 60.0,
+      "isSet": false
+    },
+    {
+      "key": "autoswitch.warmupFiveHour",
+      "value": false,
+      "isSet": false
+    },
+    {
+      "key": "autoswitch.cooldownSeconds",
+      "value": 300.0,
+      "isSet": false
+    },
+    {
+      "key": "autoswitch.hysteresisPct",
+      "value": 10.0,
+      "isSet": false
+    },
+    {
+      "key": "autoswitch.strategy",
+      "value": "best",
+      "isSet": false
+    },
+    {
+      "key": "autoswitch.includeApiKeyAccounts",
+      "value": false,
+      "isSet": false
+    },
+    {
+      "key": "autoswitch.unhealthyTicks",
+      "value": 3,
+      "isSet": false
+    },
+    {
+      "key": "autoswitch.model",
+      "value": null,
+      "isSet": false
+    },
+    {
+      "key": "autoswitch.windows",
+      "value": "both",
+      "isSet": false
+    },
+    {
+      "key": "autoswitch.threshold5h",
+      "value": null,
+      "isSet": false
+    },
+    {
+      "key": "autoswitch.threshold7d",
+      "value": null,
+      "isSet": false
+    },
+    {
+      "key": "autoswitch.modelThresholds",
+      "value": null,
+      "isSet": false
+    },
+    {
+      "key": "ui.language",
+      "value": "en",
+      "isSet": false
+    },
+    {
+      "key": "ui.theme",
+      "value": "dark",
+      "isSet": true
+    },
+    {
+      "key": "ui.view",
+      "value": "combined",
+      "isSet": false
+    },
+    {
+      "key": "ui.mask",
+      "value": false,
+      "isSet": false
+    },
+    {
+      "key": "ui.starPrompt",
+      "value": true,
+      "isSet": false
+    },
+    {
+      "key": "credentials.backend",
+      "value": "auto",
+      "isSet": false
+    },
+    {
+      "key": "claude.statusline",
+      "value": false,
+      "isSet": false
+    },
+    {
+      "key": "claude.mod",
+      "value": false,
+      "isSet": false
+    },
+    {
+      "key": "run.shareHistory",
+      "value": false,
+      "isSet": false
+    },
+    {
+      "key": "updates.check",
+      "value": false,
+      "isSet": true
+    }
+  ]
+}

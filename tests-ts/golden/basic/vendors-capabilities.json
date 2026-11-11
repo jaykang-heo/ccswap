@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "vendors": {
+    "muse": {
+      "detect": {
+        "support": "supported",
+        "mechanism": "PATH lookup for `muse`"
+      },
+      "version": {
+        "support": "supported",
+        "mechanism": "`muse --version`"
+      },
+      "auth-state": {
+        "support": "conditional",
+        "mechanism": "META_API_KEY presence + provider list in ~/.config/muse/auth.json (credential type and account identity are not exposed by muse)"
+      },
+      "account-enumeration": {
+        "support": "unsupported",
+        "mechanism": "muse has no whoami/accounts command; CCSwap-registered only"
+      },
+      "registration": {
+        "support": "supported",
+        "mechanism": "Browser: the login file is kept only when it holds a token. API key: accepted only when it is providers.meta.api_key of a registered browser login, and linked to that login by alias"
+      },
+      "switch": {
+        "support": "supported",
+        "mechanism": "Browser logins: ccswap keeps a login only when the file holds a token, swaps Muse's auth.json, and accepts the switch when `muse usage` does not say not logged in. A keychain pointer is refused. API-key accounts are for `ccswap muse run` and are not menu switches"
+      },
+      "usage": {
+        "support": "supported",
+        "mechanism": "`muse usage --json` (no model turn): tier, 5-hour and weekly used % with reset times. Each browser login is measured from its own stored auth.json under a private XDG_CONFIG_HOME with TBH_CREDENTIAL_BACKEND=file. An API key reports the linked login's allowance. The signed-in login is read in place"
+      },
+      "rate-limit-detection": {
+        "support": "unsupported",
+        "mechanism": "no stable muse interface"
+      },
+      "auto-switch": {
+        "support": "supported",
+        "mechanism": "`ccswap muse auto` or the menu bar toggle: when the signed-in login reaches a gate (autoswitch.threshold, threshold5h, threshold7d) ccswap switches to the browser login with the most room. Running Muse sessions keep the previous login until restarted"
+      },
+      "session-isolation": {
+        "support": "supported",
+        "mechanism": "Every muse child gets TBH_CREDENTIAL_BACKEND=file. A login that is not the signed-in one is measured under a private XDG_CONFIG_HOME. `ccswap muse run` still passes META_API_KEY for an API-key account"
+      },
+      "logout": {
+        "support": "conditional",
+        "mechanism": "`muse logout` (never run implicitly)"
+      }
+    },
+    "opencode": {
+      "detect": {
+        "support": "supported",
+        "mechanism": "PATH lookup for `opencode`"
+      },
+      "version": {
+        "support": "supported",
+        "mechanism": "`opencode --version`"
+      },
+      "auth-state": {
+        "support": "conditional",
+        "mechanism": "this version has no JSON listing; providers are read (names/types only) from the legacy auth.json, one credential per provider"
+      },
+      "account-enumeration": {
+        "support": "conditional",
+        "mechanism": "this version has no JSON listing; providers are read (names/types only) from the legacy auth.json, one credential per provider"
+      },
+      "registration": {
+        "support": "supported",
+        "mechanism": "alias for a provider/account OpenCode already lists"
+      },
+      "switch": {
+        "support": "unsupported",
+        "mechanism": "this OpenCode has no `auth switch` (added in newer releases); use `opencode auth login` or the TUI /connect"
+      },
+      "usage": {
+        "support": "conditional",
+        "mechanism": "local statistics per provider and model (tokens, OpenCode's USD cost estimate; 24h/7d/30d/all) via a read-only `opencode db` aggregate, or `opencode stats` text on older releases. Provider quotas and per-account usage: not reported"
+      },
+      "rate-limit-detection": {
+        "support": "unsupported",
+        "mechanism": "provider-specific; not exposed by OpenCode"
+      },
+      "auto-switch": {
+        "support": "unsupported",
+        "mechanism": "no verified per-account quota to compare"
+      },
+      "session-isolation": {
+        "support": "unsupported",
+        "mechanism": "credentials are resolved by the shared OpenCode server, not per process"
+      },
+      "logout": {
+        "support": "conditional",
+        "mechanism": "`opencode auth logout <provider> [account]` (explicit only)"
+      }
+    },
+    "kiro": {
+      "detect": {
+        "support": "supported",
+        "mechanism": "PATH lookup for `kiro-cli` (not the IDE launcher `kiro`)"
+      },
+      "version": {
+        "support": "supported",
+        "mechanism": "`kiro-cli --version`"
+      },
+      "auth-state": {
+        "support": "supported",
+        "mechanism": "`kiro-cli whoami -f json` (+ KIRO_API_KEY presence)"
+      },
+      "account-enumeration": {
+        "support": "conditional",
+        "mechanism": "only the single active login is visible (`whoami`); no account list"
+      },
+      "registration": {
+        "support": "supported",
+        "mechanism": "login: identity metadata from `whoami` (no tokens copied); api-key: stdin/prompt into CCSwap's 0600 store"
+      },
+      "switch": {
+        "support": "conditional",
+        "mechanism": "login accounts: confirmed `kiro-cli logout` + `kiro-cli login <flags>` (interactive), verified with `whoami`. API-key accounts: not switchable (process-scoped) -- use `ccswap kiro run`"
+      },
+      "usage": {
+        "support": "unsupported",
+        "mechanism": "`/usage` is interactive-only; no documented machine-readable interface"
+      },
+      "rate-limit-detection": {
+        "support": "unsupported",
+        "mechanism": "no stable kiro-cli interface"
+      },
+      "auto-switch": {
+        "support": "unsupported",
+        "mechanism": "switching a login needs an interactive logout/login"
+      },
+      "session-isolation": {
+        "support": "conditional",
+        "mechanism": "API-key accounts: child gets KIRO_API_KEY (headless). Login accounts share the one machine-wide login and cannot run side by side"
+      },
+      "logout": {
+        "support": "conditional",
+        "mechanism": "`kiro-cli logout`, only inside an explicit login switch"
+      }
+    }
+  }
+}

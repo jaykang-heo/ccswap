@@ -1,0 +1,1 @@
+{"auth_method":"consumer","id_token_email":"agy@example.com","token":{"access_token":"fake-access-token","expiry":"2030-01-01T00:00:00Z","refresh_token":"fake-refresh-token"}}
