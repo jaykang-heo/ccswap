@@ -1,0 +1,14 @@
+{
+  "provider": "agy",
+  "activeAccountNumber": null,
+  "accounts": [
+    {
+      "number": 1,
+      "email": "agy@example.com",
+      "authMode": "consumer",
+      "active": false,
+      "usage": null,
+      "error": "Antigravity usage command failed"
+    }
+  ]
+}

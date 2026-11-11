@@ -1,0 +1,1 @@
+2026-11-11 16:37:32,583 - WARNING - macos_keyring_to_security: keyring unavailable, using security fallback for legacy reads (may prompt once): No module named 'keyring'

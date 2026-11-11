@@ -1,0 +1,2 @@
+Directory mappings:
+  /work/client-app → 1: alice@example.com [Acme]

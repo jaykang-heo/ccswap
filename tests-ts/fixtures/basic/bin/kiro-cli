@@ -1,0 +1,3 @@
+#!/bin/sh
+if [ "$1" = "--version" ]; then echo "kiro-cli 9.9.9-fixture"; exit 0; fi
+echo "fixture kiro-cli: unsupported" >&2; exit 1

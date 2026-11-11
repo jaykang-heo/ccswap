@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "tool": "muse",
+  "installed": true,
+  "version": "9.9.9-fixture",
+  "accounts": [
+    {
+      "alias": "work",
+      "kind": "api-key",
+      "provider": null,
+      "identity": {
+        "email": "m@example.com"
+      },
+      "registered": true,
+      "active": null,
+      "note": "last switched to by ccswap; unconfirmed (muse cannot report its key)"
+    }
+  ]
+}

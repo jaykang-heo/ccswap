@@ -1,0 +1,64 @@
+{
+  "claude": {
+    "schemaVersion": 1,
+    "activeAccountNumber": null,
+    "accounts": [
+      {
+        "number": 1,
+        "email": "alice@example.com",
+        "organizationName": "Acme",
+        "organizationUuid": "org-1",
+        "isOrganization": true,
+        "active": false,
+        "usageStatus": "no_credentials",
+        "usage": null,
+        "alias": "dev"
+      },
+      {
+        "number": 2,
+        "email": "bob@example.com",
+        "organizationName": "",
+        "organizationUuid": "",
+        "isOrganization": false,
+        "active": false,
+        "usageStatus": "no_credentials",
+        "usage": null
+      }
+    ]
+  },
+  "codex": {
+    "provider": "codex",
+    "activeAccountNumber": null,
+    "accounts": [
+      {
+        "number": 1,
+        "email": "ci@example.com",
+        "authMode": "unknown",
+        "planType": "",
+        "label": "Codex",
+        "active": false,
+        "disabled": false,
+        "session": {
+          "state": "absent",
+          "capturePending": false,
+          "runCount": 0,
+          "shared": false
+        }
+      }
+    ]
+  },
+  "agy": {
+    "provider": "agy",
+    "activeAccountNumber": null,
+    "accounts": [
+      {
+        "number": 1,
+        "email": "agy@example.com",
+        "authMode": "consumer",
+        "active": false,
+        "usage": null,
+        "error": "Antigravity usage command failed"
+      }
+    ]
+  }
+}
