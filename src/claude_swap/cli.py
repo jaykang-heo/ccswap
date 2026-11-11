@@ -78,7 +78,7 @@ _SUBCOMMAND_FLAGS = {
 def _relogin_dispatch(switcher: ClaudeAccountSwitcher, identifier: str) -> None:
     from claude_swap.relogin import relogin
 
-    print(dimmed("Opening the browser to sign in. Pick the same organization."))
+    print(dimmed("Opening the browser to sign in. Pick the same organization."), flush=True)
     result = relogin(switcher, identifier)
     expiry = f", login now lasts until {result.login_expires_at}" if result.login_expires_at else ""
     live = " (the running Claude Code picks it up too)" if result.live_updated else ""
