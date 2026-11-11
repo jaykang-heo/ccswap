@@ -428,7 +428,8 @@ def vendors_command(argv: list[str], service: VendorService | None = None) -> in
 def usage_problems(summaries, env) -> list[str]:
     """Why the menu bar could not show every registered account's numbers, if anything.
 
-    An empty list is the install gate's pass.  Muse needs one credential backend for
+    An empty list is the install gate's pass.  A last reading that still has numbers
+    passes: an idle Muse login reports no allowance until its next use.  Muse needs one credential backend for
     every process: without ``TBH_CREDENTIAL_BACKEND=file`` a Muse started from here
     rewrites the login into a Keychain pointer that file-backend Muse cannot read.
     """
@@ -446,7 +447,10 @@ def usage_problems(summaries, env) -> list[str]:
                 "(launchctl getenv TBH_CREDENTIAL_BACKEND)"
             )
         for view, usage in summary.accounts:
-            if view.registered and usage.state is not UsageState.AVAILABLE:
+            shown = usage.state is UsageState.AVAILABLE or (
+                usage.state is UsageState.STALE and usage.has_data
+            )
+            if view.registered and not shown:
                 detail = usage.reason or usage.error or usage.state.value
                 problems.append(f"{summary.tool}: {view.alias}: {usage.state.value}: {detail}")
     return problems
