@@ -103,6 +103,7 @@ class MenuBarSettings:
     refresh_interval: int = 60
     auto_switch_enabled: bool = False
     codex_auto_switch_enabled: bool = False
+    muse_auto_switch_enabled: bool = False
 
     @classmethod
     def load(cls, path: Path) -> "MenuBarSettings":
@@ -689,6 +690,8 @@ def run(switcher) -> int:
                 self._codex_auth_mtime = 0.0
             self._codex_engine = None
             self._codex_engine_events: list = []
+            self._muse_engine = None
+            self._muse_engine_events: list = []
             # Claude Code integrations: live state read off the main thread
             # (`claude plugin list` takes about a second); None until known.
             # A finished toggle leaves (ok, message) in _claude_note for the
@@ -709,6 +712,8 @@ def run(switcher) -> int:
                 self._start_engine()
             if self.settings.codex_auto_switch_enabled:
                 self._start_codex_engine()
+            if self.settings.muse_auto_switch_enabled:
+                self._start_muse_engine()
 
         # ---- display refresh plumbing ----------------------------------------
         def refresh_async(self, full=False):
@@ -842,6 +847,7 @@ def run(switcher) -> int:
             self._detect_codex_active_change()
             self._drain_engine_events()
             self._drain_codex_engine_events()
+            self._drain_muse_engine_events()
 
         def _detect_active_change(self):
             # Reflect account switches from any source (menu, CLI, auto engine)
@@ -1010,6 +1016,51 @@ def run(switcher) -> int:
                     rumps.notification("ccswap", "All Codex accounts exhausted", ev.human())
                 # No quarantine/config-warning arms: CodexAutoSwitchEngine emits
                 # neither (it has no quarantine ledger and no model filter).
+
+        # ---- Muse auto-switch engine ------------------------------------------
+        def _start_muse_engine(self):
+            """Run MuseAutoSwitchEngine (live) in a background thread."""
+            if self._muse_engine is not None:
+                return
+            try:
+                from claude_swap.vendors.muse_autoswitch import MuseAutoSwitchEngine
+
+                engine = MuseAutoSwitchEngine(
+                    self._vendor_service(),
+                    load_settings(self.switcher.backup_dir),
+                    self._on_muse_engine_event,
+                )
+            except Exception as e:  # never let a bad start crash the menu bar
+                self.switcher._logger.warning("muse auto-switch engine failed to start: %s", e)
+                rumps.notification("ccswap", "Muse auto-switch failed to start", str(e))
+                return
+            self._muse_engine = engine
+            threading.Thread(target=self._run_muse_engine, args=(engine,), daemon=True).start()
+
+        def _run_muse_engine(self, engine):
+            try:
+                engine.run_loop()
+            except Exception:
+                self.switcher._logger.debug("muse auto-switch engine crashed", exc_info=True)
+
+        def _stop_muse_engine(self):
+            if self._muse_engine is not None:
+                self._muse_engine.stop()
+                self._muse_engine = None
+
+        def _on_muse_engine_event(self, event):
+            with self._event_lock:
+                self._muse_engine_events.append(event)
+
+        def _drain_muse_engine_events(self):
+            with self._event_lock:
+                events, self._muse_engine_events = self._muse_engine_events, []
+            for ev in events:
+                if ev.kind == "switch":
+                    rumps.notification("ccswap", "Muse auto-switched login", ev.human())
+                    self.refresh_async(full=True)
+                elif ev.kind == "all-exhausted":
+                    rumps.notification("ccswap", "All Muse logins exhausted", ev.human())
 
         def _threshold(self) -> int:
             """Current auto-switch threshold from core settings (for the menu)."""
@@ -1356,6 +1407,12 @@ def run(switcher) -> int:
             )
             menu.add(codex_auto_item)
 
+            muse_auto_item = rumps.MenuItem(
+                "Auto-switch Muse accounts", callback=self.on_toggle_muse_autoswitch
+            )
+            muse_auto_item.state = 1 if self.settings.muse_auto_switch_enabled else 0
+            menu.add(muse_auto_item)
+
             threshold_menu = rumps.MenuItem("Auto-switch threshold")
             current = self._threshold()
             for pct in AUTO_THRESHOLD_CHOICES:
@@ -1586,6 +1643,15 @@ def run(switcher) -> int:
                 self._stop_engine()
             self.rebuild_menu()
 
+        def on_toggle_muse_autoswitch(self, _sender):
+            self.settings.muse_auto_switch_enabled = not self.settings.muse_auto_switch_enabled
+            self.settings.save(settings_path)
+            if self.settings.muse_auto_switch_enabled:
+                self._start_muse_engine()
+            else:
+                self._stop_muse_engine()
+            self.rebuild_menu()
+
         def on_toggle_codex_autoswitch(self, _sender):
             self.settings.codex_auto_switch_enabled = not self.settings.codex_auto_switch_enabled
             self.settings.save(settings_path)
@@ -1631,6 +1697,9 @@ def run(switcher) -> int:
                     return
                 self._restart_engine()  # apply immediately if running
                 self._restart_codex_engine()  # same shared autoswitch.threshold setting
+                if self._muse_engine is not None:
+                    self._stop_muse_engine()
+                    self._start_muse_engine()
                 self.rebuild_menu()
             return cb
 

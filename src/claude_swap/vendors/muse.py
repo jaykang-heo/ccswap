@@ -332,9 +332,11 @@ class MuseAdapter(ToolAdapter):
             ),
             Capability.RATE_LIMIT_DETECTION: cap(S.UNSUPPORTED, "no stable muse interface"),
             Capability.AUTO_SWITCH: cap(
-                S.UNSUPPORTED,
-                "no per-account quota that is comparable across accounts, and browser "
-                "sessions cannot be switched",
+                S.SUPPORTED,
+                "`ccswap muse auto` or the menu bar toggle: when the signed-in login reaches "
+                "a gate (autoswitch.threshold, threshold5h, threshold7d) ccswap switches to "
+                "the browser login with the most room. Running Muse sessions keep the "
+                "previous login until restarted",
             ),
             Capability.SESSION_ISOLATION: cap(
                 S.SUPPORTED,
@@ -942,8 +944,13 @@ class MuseAdapter(ToolAdapter):
                 "Only API-key accounts can run in isolation; Muse has a single stored "
                 "browser session. Use `muse` directly or `ccswap muse switch --login`"
             )
+        return self.key_launch_spec(secret, args)
+
+    def key_launch_spec(self, key: str, args: Sequence[str]) -> LaunchSpec:
+        """Muse run on ``key`` for this child only; the stored login is not touched."""
+        info = self.require_installed()
         return LaunchSpec(
-            (info.exe, *args), env_overlay={ENV_KEY: secret, CREDENTIAL_BACKEND: _FILE_BACKEND}
+            (info.exe, *args), env_overlay={ENV_KEY: key, CREDENTIAL_BACKEND: _FILE_BACKEND}
         )
 
     def logout(self) -> None:

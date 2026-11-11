@@ -194,10 +194,22 @@ def _parser(tool: str) -> argparse.ArgumentParser:
         run.add_argument(
             "account",
             metavar="ALIAS|NUM|@key",
-            help="@key: the first registered API-key account (what crew lanes run as)",
+            help="@key: what crew lanes run as. Muse: the subscription key of the login with "
+            "the most quota left, else the first registered API-key account",
         )
         run.add_argument(
             "args", nargs=argparse.REMAINDER, help="Arguments after `--` go to the tool"
+        )
+    if tool == "muse":
+        auto = with_json(
+            sub.add_parser(
+                "auto",
+                help="Switch the signed-in login when it nears a limit (autoswitch.* settings)",
+            )
+        )
+        auto.add_argument("--once", action="store_true", help="One check, then exit")
+        auto.add_argument(
+            "--dry-run", action="store_true", help="Report what it would do; never switch"
         )
     if tool == "opencode":
         login = sub.add_parser("login", help="Run `opencode auth login` (interactive)")
@@ -252,6 +264,40 @@ def _emit(payload: dict, as_json: bool, human) -> int:
     else:
         human()
     return 0
+
+
+def _autoswitch_settings():
+    from claude_swap import paths
+    from claude_swap.settings import load_settings
+
+    return load_settings(paths.get_backup_root())
+
+
+def _muse_auto(service: VendorService, args, as_json: bool) -> int:
+    """``ccswap muse auto``: the Muse engine on the shared ``autoswitch.*`` settings."""
+    import signal
+    import time
+
+    from claude_swap.vendors.muse_autoswitch import MuseAutoSwitchEngine
+
+    def emit(event) -> None:
+        if as_json:
+            print(json.dumps(event.to_json()), flush=True)
+        else:
+            print(f"{time.strftime('%H:%M:%S')}  {event.human()}", flush=True)
+
+    settings = _autoswitch_settings()
+    engine = MuseAutoSwitchEngine(service, settings, emit, dry_run=args.dry_run)
+    if args.once:
+        return engine.tick().value
+    if not as_json:
+        print(
+            f"Muse auto-switch running: threshold {settings.threshold:.0f}%, "
+            f"every {settings.interval_seconds:.0f}s"
+            f"{' (dry-run)' if args.dry_run else ''} (Ctrl-C to stop)"
+        )
+    signal.signal(signal.SIGTERM, lambda *_: engine.stop())
+    return engine.run_loop()
 
 
 def _dispatch(tool: str, args, service: VendorService, as_json: bool) -> int:
@@ -349,6 +395,17 @@ def _dispatch(tool: str, args, service: VendorService, as_json: bool) -> int:
     if action == "run":
         extra = args.args[1:] if args.args[:1] == ["--"] else args.args
         account = args.account
+        if account == "@key" and tool == "muse":
+            from claude_swap.vendors.muse_autoswitch import lane_key
+
+            picked = lane_key(service, _autoswitch_settings())
+            if picked is not None:
+                quota, key = picked
+                print(f"ccswap: Muse lane key from '{quota.alias}'", file=sys.stderr)
+                spec = adapter.key_launch_spec(key, extra)  # type: ignore[attr-defined]
+                return adapter.runner.run_interactive(
+                    spec.argv, env=spec.env_overlay, unset_env=spec.unset_env
+                )
         if account == "@key":
             keys = [r.alias for r in service.store.records(tool) if r.kind == "api-key"]
             if not keys:
@@ -357,6 +414,8 @@ def _dispatch(tool: str, args, service: VendorService, as_json: bool) -> int:
                 )
             account = keys[0]
         return service.run(tool, account, extra)
+    if action == "auto":
+        return _muse_auto(service, args, as_json)
     if action == "login":
         return adapter.login(args.provider)  # type: ignore[attr-defined]
     if action == "logout":

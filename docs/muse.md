@@ -79,3 +79,23 @@ result (Muse cannot be asked which key is stored), and says so (`"verified": fal
 
 Keys are never accepted as arguments (`--api-key KEY` is a usage error), never printed, and
 never logged. See [Security](architecture.md#security-model).
+
+## Automatic switching
+
+Muse is used in two ways, and each one moves on its own.
+
+- **The signed-in login.** `ccswap muse auto` (or *Settings → Auto-switch Muse accounts* in
+  the menu bar) watches the signed-in login. When its 5-hour or weekly window reaches the
+  gate (`autoswitch.threshold`, default 90%, or `autoswitch.threshold5h` /
+  `autoswitch.threshold7d`), ccswap switches to the browser login with the most room below
+  its own gates. A login at 100% is left at once; below 100% the move waits out
+  `autoswitch.cooldownSeconds` and needs a target at least `autoswitch.hysteresisPct` clear
+  of its gate. `--once` runs one check, `--dry-run` only reports, `--json` prints one event
+  per line. A running Muse session keeps the previous login until it is restarted.
+- **Lanes.** `ccswap muse run @key -- ...` runs Muse on the subscription key of the login
+  with the most quota left, for that process only, and changes no global login. When no
+  login has a usable reading and key, it runs on the first registered API-key account as
+  before.
+
+A login is only switched to, or billed by a lane, when ccswap has numbers for it. The engine
+does not switch when it has no reading of the signed-in login.
