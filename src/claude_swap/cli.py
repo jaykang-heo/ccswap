@@ -62,6 +62,7 @@ _SUBCOMMAND_FLAGS = {
     "rm": "--remove-account",
     "disable": "--disable-account",
     "enable": "--enable-account",
+    "relogin": "--relogin",
     "export": "--export",
     "import": "--import",
     "import-usage": "--import-usage",
@@ -72,6 +73,16 @@ _SUBCOMMAND_FLAGS = {
     "watch": "--watch",
     "menubar": "--menubar",
 }
+
+
+def _relogin_dispatch(switcher: ClaudeAccountSwitcher, identifier: str) -> None:
+    from claude_swap.relogin import relogin
+
+    print(dimmed("Opening the browser to sign in. Pick the same organization."), flush=True)
+    result = relogin(switcher, identifier)
+    expiry = f", login now lasts until {result.login_expires_at}" if result.login_expires_at else ""
+    live = " (the running Claude Code picks it up too)" if result.live_updated else ""
+    print(f"{accent('Renewed')} Account-{result.account_num} ({result.email}){expiry}{live}.")
 
 
 def _translate_subcommand(argv: list[str]) -> list[str]:
@@ -1552,6 +1563,7 @@ Commands:
   %(prog)s remove <num|email>         remove an account
   %(prog)s disable <num|email>        hold an account out of auto-rotation
   %(prog)s enable <num|email>         return a disabled account to rotation
+  %(prog)s relogin <num|email>        renew an account's login in the browser
   %(prog)s run <num|email> [-- ...]   run as an account, this terminal only
   %(prog)s run                        run the current dir's mapped account
   %(prog)s map <num|email> [path]     map a directory to an account
@@ -1755,6 +1767,11 @@ The original flag spellings (%(prog)s --switch, %(prog)s --list, ...) keep worki
         help=argparse.SUPPRESS,
     )
     group.add_argument(
+        "--relogin",
+        metavar="NUM|EMAIL",
+        help=argparse.SUPPRESS,
+    )
+    group.add_argument(
         "--list",
         action="store_true",
         help=argparse.SUPPRESS,
@@ -1842,6 +1859,7 @@ The original flag spellings (%(prog)s --switch, %(prog)s --list, ...) keep worki
         or args.remove_account is not None
         or args.disable_account is not None
         or args.enable_account is not None
+        or args.relogin is not None
         or args.switch_to is not None
         or args.export is not None
         or args.import_ is not None
@@ -1956,6 +1974,8 @@ The original flag spellings (%(prog)s --switch, %(prog)s --list, ...) keep worki
             switcher.set_account_disabled(args.disable_account, True)
         elif args.enable_account is not None:
             switcher.set_account_disabled(args.enable_account, False)
+        elif args.relogin is not None:
+            _relogin_dispatch(switcher, args.relogin)
         elif args.list:
             payload = _list_dispatch(switcher, args)
         elif args.switch:

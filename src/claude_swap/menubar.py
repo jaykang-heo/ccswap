@@ -28,7 +28,7 @@ from dataclasses import asdict, dataclass, fields, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
-from claude_swap import pace
+from claude_swap import login_expiry, pace
 from claude_swap.exceptions import ClaudeSwitchError, CredentialReadError
 from claude_swap.printer import warning
 from claude_swap.switcher import SENTINEL_NOTES
@@ -637,6 +637,8 @@ def run(switcher) -> int:
 
     settings_path = switcher.backup_dir / "menubar_settings.json"
     log_path = switcher.backup_dir / "claude-swap.log"
+    login_warned_path = switcher.backup_dir / "login_expiry_warned.json"
+    LOGIN_CHECK_SECONDS = 1800
 
     class MenuBarApp(rumps.App):
         def __init__(self):
@@ -663,6 +665,9 @@ def run(switcher) -> int:
             self._config_path = switcher._get_claude_config_path()
             self._config_mtime = 0.0
             self._last_usage_log: dict = {}  # (provider, account num) -> last-logged (5h, 7d) key
+            self._logins: dict[str, login_expiry.SlotLogin] = {}
+            self._logins_at = 0.0
+            self._login_warnings: list[login_expiry.LoginWarning] = []
             # Auto-switch engine (the same one `cswap auto` runs), hosted in a
             # background thread while enabled.
             self._engine = None
@@ -743,6 +748,8 @@ def run(switcher) -> int:
                     self.snapshot = snap
                     self._snapshot_at = time.time()
                     dirty = True
+                    if full or time.time() - self._logins_at >= LOGIN_CHECK_SECONDS:
+                        self._check_logins(snap)
                 # Same pass, second provider: a Codex fetch failure must not
                 # discard a good Claude snapshot, and vice versa, so each is
                 # caught and stored independently.
@@ -829,6 +836,59 @@ def run(switcher) -> int:
                     self.switcher._logger.info(line)
                     self._last_usage_log[dedupe_key] = key
 
+        def _check_logins(self, snap):
+            """Read each slot's login expiry and queue the warnings now due."""
+            logins = {}
+            for num, email, *_rest in snap["accounts"]:
+                try:
+                    creds = self.switcher._read_account_credentials(num, email, cached=True)
+                except Exception:
+                    self.switcher._logger.debug("login expiry read failed", exc_info=True)
+                    continue
+                login = login_expiry.slot_login(num, email, creds)
+                if login is not None:
+                    logins[num] = login
+            self._logins = logins
+            self._logins_at = time.time()
+            due, sent = login_expiry.due_warnings(
+                list(logins.values()), login_expiry.load_sent(login_warned_path), time.time()
+            )
+            if due:
+                self._login_warnings = self._login_warnings + due
+            try:
+                login_expiry.save_sent(login_warned_path, sent)
+            except OSError:
+                self.switcher._logger.debug("login expiry record not saved", exc_info=True)
+
+        def _renew_login_menu(self, rumps):
+            menu = rumps.MenuItem("Renew login")
+            accounts = self.snapshot["accounts"]
+            if not accounts:
+                menu.add(rumps.MenuItem("No managed accounts", callback=None))
+            now = time.time()
+            for num, email, _is_active, _display, _last_good, alias, _disabled, _fetched_at in accounts:
+                name = f"{alias}  ({email})" if alias else email
+                login = self._logins.get(num)
+                left = "" if login is None else self._login_left(login_expiry.days_left(login, now))
+                menu.add(rumps.MenuItem(f"{num}  {name}{left}", callback=self._make_relogin(num)))
+            return menu
+
+        @staticmethod
+        def _login_left(days):
+            if days <= 0:
+                return "  · expired"
+            if days < 1:
+                return f"  · {max(1, round(days * 24))}h left"
+            return f"  · {int(days)}d left"
+
+        def _make_relogin(self, num):
+            def cb(_sender):
+                import subprocess
+
+                subprocess.Popen(login_expiry.terminal_relogin_argv(num))  # nosec B603 - fixed binary
+                self._logins_at = 0.0  # re-read expiries on the next refresh
+            return cb
+
         def on_refresh_tick(self, _timer):
             self.refresh_async()
 
@@ -843,6 +903,9 @@ def run(switcher) -> int:
                     rumps.notification("ccswap", "Claude Code", message)
                 else:
                     rumps.alert(title="ccswap", message=message)
+            warnings, self._login_warnings = self._login_warnings, []
+            for w in warnings:
+                rumps.notification("ccswap", "Login expiring", w.message())
             self._detect_active_change()
             self._detect_codex_active_change()
             self._drain_engine_events()
@@ -1127,6 +1190,7 @@ def run(switcher) -> int:
                 *self._tool_sections(rumps),
                 self._add_menu(rumps),
                 self._disable_menu(rumps),
+                self._renew_login_menu(rumps),
                 self._remove_menu(rumps),
                 rumps.MenuItem("Refresh current credentials", callback=self.on_refresh_creds),
                 self._history_menu(rumps),

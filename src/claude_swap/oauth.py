@@ -190,6 +190,9 @@ def try_refresh_oauth_credentials(
         oauth["expiresAt"] = now_ms + resp_data["expires_in"] * 1000
         if resp_data.get("refresh_token"):
             oauth["refreshToken"] = resp_data["refresh_token"]
+        login_ttl = resp_data.get("refresh_token_expires_in")
+        if isinstance(login_ttl, (int, float)) and not isinstance(login_ttl, bool):
+            oauth["refreshTokenExpiresAt"] = now_ms + int(login_ttl * 1000)
         if resp_data.get("scope"):
             oauth["scopes"] = resp_data["scope"].split()
 

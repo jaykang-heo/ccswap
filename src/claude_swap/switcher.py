@@ -27,7 +27,7 @@ from claude_swap.exceptions import (
     SwitchError,
     ValidationError,
 )
-from claude_swap import oauth, pace
+from claude_swap import login_expiry, oauth, pace
 from claude_swap.claude_locks import claude_config_lock, claude_credentials_lock
 from claude_swap.json_output import (
     SCHEMA_VERSION,
@@ -81,6 +81,7 @@ from claude_swap.printer import (
     ide_short_name,
     muted,
     warning,
+    yellowed,
 )
 from claude_swap.paths import (
     get_backup_root,
@@ -235,7 +236,7 @@ SENTINEL_NOTES = {
     USAGE_FOREIGN_CREDENTIAL: "live credential belongs to another account — a switch repairs it",
     USAGE_API_KEY: "API key (no quota)",
     USAGE_KEYCHAIN_UNAVAILABLE: "keychain unavailable — locked or in use; try again",
-    USAGE_RELOGIN_REQUIRED: "re-login needed — refresh token dead; log in with Claude Code, then run: ccswap add",
+    USAGE_RELOGIN_REQUIRED: "re-login needed — refresh token dead; run: ccswap relogin <num>",
 }
 
 
@@ -1947,6 +1948,36 @@ class ClaudeAccountSwitcher:
         process (see the v0.7.3 deadlock history).
         """
         self._write_account_credentials(account_num, email, credentials)
+
+    def replace_slot_login(
+        self, account_num: str, email: str, org_uuid: str, credentials: str
+    ) -> bool:
+        """Store a fresh login for a slot; True when the live store took it too.
+
+        The new login starts a new refresh lineage, so it replaces the slot
+        backup under the same locks the refresh persist takes. When the slot
+        is the live account, Claude Code's store gets it as well, with the
+        live copy's shared fields (``mcpOAuth``) kept, exactly as a
+        ``/login`` would leave it.
+        """
+        with (
+            FileLock(self.credentials_dir / f".consume-{account_num}.lock"),
+            FileLock(self.lock_file),
+            claude_credentials_lock(),
+        ):
+            self._write_account_credentials(account_num, email, credentials)
+            self._usage_store.clear_dead_token(
+                [account_num], {account_num: (email, org_uuid)}
+            )
+            self._logger.info(f"Renewed login for account {account_num}: {email}")
+            if not self._live_identity_matches(email, org_uuid):
+                return False
+            live = self._read_credentials()
+            with claude_config_lock():
+                self._write_credentials(
+                    self._prepare_credentials_for_activation(credentials, live)
+                )
+            return True
 
     def read_account_config(self, account_num: str, email: str) -> str:
         """Public wrapper for session bootstrap. Empty string when missing."""
@@ -6091,7 +6122,8 @@ class ClaudeAccountSwitcher:
 
         seq_data = self._get_sequence_data() or {}
         print(bolded("Accounts:"))
-        for i, (num, email, org_name, org_uuid, is_active, _, alias) in enumerate(accounts_info):
+        now_s = time.time()
+        for i, (num, email, org_name, org_uuid, is_active, creds, alias) in enumerate(accounts_info):
             tag = self._get_display_tag(email, org_name, org_uuid)
             label = f"{accent(alias)} ({email})" if alias else email
             markers = ""
@@ -6102,6 +6134,12 @@ class ClaudeAccountSwitcher:
             print(f"  {num}: {label} {muted(f'[{tag}]')}{markers}")
             for line in _usage_entry_lines(entries[str(num)]):
                 print(f"     {line}")
+            login = login_expiry.slot_login(str(num), email, creds)
+            if login is not None:
+                left = login_expiry.days_left(login, now_s)
+                if left <= login_expiry.WARN_DAYS[0]:
+                    when = "has expired" if left <= 0 else f"expires in {max(left, 0):.1f}d"
+                    print(f"     {yellowed(f"login {when}")} {muted(f'· ccswap relogin {num}')}")
 
             if show_token_status:
                 for line in self._token_status_lines(accounts_info[i]):
