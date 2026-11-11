@@ -5,7 +5,29 @@
 
 import { probeBinary, toolAccounts, toolActive, type VendorsLoad } from "../adapters/vendorStore.js";
 import { loadVendorsDoc } from "../adapters/vendorStore.js";
-import { VENDOR_TOOLS } from "../../platform/domain/paths.js";
+import { ALL_TOOLS, VENDOR_TOOLS } from "../../platform/domain/paths.js";
+
+/**
+ * grok is a known tool with no supported mechanism yet. It is answered
+ * explicitly (never reported as unknown) but stays out of the default
+ * full-table so wave-1 `vendors capabilities` parity with Python holds.
+ */
+export const GROK_TOOL = "grok" as const;
+export const GROK_CAPABILITIES: Record<string, { support: string; mechanism: string }> = {
+  list: { support: "no", mechanism: "no supported account mechanism yet" },
+  switch: { support: "no", mechanism: "the product cannot do it" },
+  usage: { support: "no", mechanism: "no supported account mechanism yet" },
+  "per-account usage": { support: "no", mechanism: "no supported account mechanism yet" },
+  run: { support: "no", mechanism: "the product cannot do it" },
+  "auto-switch": { support: "no", mechanism: "the product cannot do it" },
+};
+
+export function capabilitiesWithGrok(tools: string[]): Record<string, Record<string, { support: string; mechanism: string }>> {
+  const toolsOnly = tools.filter((t) => t !== GROK_TOOL);
+  const payload = capabilitiesPayload(toolsOnly);
+  if (tools.includes(GROK_TOOL)) payload.vendors[GROK_TOOL] = GROK_CAPABILITIES;
+  return payload.vendors;
+}
 
 export interface VendorStatus {
   tool: string;
@@ -49,6 +71,8 @@ const CAPABILITIES: Record<string, Record<string, { support: string; mechanism: 
     "auto-switch": { support: "no", mechanism: "the product cannot do it" },
   },
 };
+
+void ALL_TOOLS;
 
 export function vendorsPayload(root?: string): { schemaVersion: 1; vendors: VendorStatus[] } {
   const { doc, unreadable }: VendorsLoad = loadVendorsDoc(root);

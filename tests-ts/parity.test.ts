@@ -28,7 +28,7 @@ function goldenText(name: string): string {
   return fs.readFileSync(path.join(goldenDir, name), "utf-8");
 }
 
-function runTs(argv: string[]): { code: number; stdout: string } {
+async function runTs(argv: string[]): Promise<{ code: number; stdout: string }> {
   const lines: string[] = [];
   const origLog = console.log;
   const origErr = console.error;
@@ -36,7 +36,7 @@ function runTs(argv: string[]): { code: number; stdout: string } {
   console.error = (...args: unknown[]) => void lines.push(args.map(String).join(" "));
   let code = 0;
   try {
-    code = run(argv);
+    code = await run(argv);
   } finally {
     console.log = origLog;
     console.error = origErr;
@@ -77,9 +77,9 @@ describe("claude roster parity", () => {
     ["list-claude.json", ["list", "--json", "--provider", "claude"]],
     ["claude-list.json", ["claude", "list", "--json"]],
   ] as Array<[string, string[]]>) {
-    it(`${argv.join(" ")} matches ${goldenFile} on roster fields`, () => {
+    it(`${argv.join(" ")} matches ${goldenFile} on roster fields`, async () => {
       const py = golden(goldenFile) as Loose;
-      const { code, stdout } = runTs(argv);
+      const { code, stdout } = await runTs(argv);
       expect(code).toBe(0);
       const ts = JSON.parse(stdout) as Loose;
       expect(arr(ts["accounts"]).map(claudeProjection)).toEqual(arr(py["accounts"]).map(claudeProjection));
@@ -88,16 +88,16 @@ describe("claude roster parity", () => {
     });
   }
 
-  it("status matches status.json (no live login -> active null)", () => {
+  it("status matches status.json (no live login -> active null)", async () => {
     const py = golden("status.json") as Loose;
-    const { code, stdout } = runTs(["status", "--json"]);
+    const { code, stdout } = await runTs(["status", "--json"]);
     expect(code).toBe(0);
     expect(JSON.parse(stdout)).toEqual(py);
   });
 
-  it("list --json (all providers) covers the same account emails", () => {
+  it("list --json (all providers) covers the same account emails", async () => {
     const py = golden("list.json") as Loose;
-    const { code, stdout } = runTs(["list", "--json"]);
+    const { code, stdout } = await runTs(["list", "--json"]);
     expect(code).toBe(0);
     const ts = JSON.parse(stdout) as Loose;
     for (const provider of ["claude", "codex", "agy"]) {
@@ -112,9 +112,9 @@ describe("claude roster parity", () => {
 });
 
 describe("codex/agy roster parity", () => {
-  it("codex list matches codex-list.json on roster fields", () => {
+  it("codex list matches codex-list.json on roster fields", async () => {
     const py = golden("codex-list.json") as Loose;
-    const { code, stdout } = runTs(["codex", "list", "--json"]);
+    const { code, stdout } = await runTs(["codex", "list", "--json"]);
     expect(code).toBe(0);
     const ts = JSON.parse(stdout) as Loose;
     const proj = (a: Loose): Loose => {
@@ -128,9 +128,9 @@ describe("codex/agy roster parity", () => {
     expect(arr(ts["accounts"]).map(proj)).toEqual(arr(py["accounts"]).map(proj));
   });
 
-  it("agy list matches agy-list.json on roster fields", () => {
+  it("agy list matches agy-list.json on roster fields", async () => {
     const py = golden("agy-list.json") as Loose;
-    const { code, stdout } = runTs(["agy", "list", "--json"]);
+    const { code, stdout } = await runTs(["agy", "list", "--json"]);
     expect(code).toBe(0);
     const ts = JSON.parse(stdout) as Loose;
     const proj = (a: Loose): Loose => {
@@ -144,9 +144,9 @@ describe("codex/agy roster parity", () => {
     expect(arr(ts["accounts"]).map(proj)).toEqual(arr(py["accounts"]).map(proj));
   });
 
-  it("agy status matches agy-status.json exactly", () => {
+  it("agy status matches agy-status.json exactly", async () => {
     const py = golden("agy-status.json");
-    const { code, stdout } = runTs(["agy", "status", "--json"]);
+    const { code, stdout } = await runTs(["agy", "status", "--json"]);
     expect(code).toBe(0);
     expect(JSON.parse(stdout)).toEqual(py);
   });
@@ -154,9 +154,9 @@ describe("codex/agy roster parity", () => {
 
 describe("vendor roster parity", () => {
   for (const tool of ["muse", "opencode", "kiro"]) {
-    it(`${tool} list matches ${tool}-list.json on account fields`, () => {
+    it(`${tool} list matches ${tool}-list.json on account fields`, async () => {
       const py = golden(`${tool}-list.json`) as Loose;
-      const { code, stdout } = runTs([tool, "list", "--json"]);
+      const { code, stdout } = await runTs([tool, "list", "--json"]);
       expect(code).toBe(0);
       const ts = JSON.parse(stdout) as Loose;
       const proj = (a: Loose): Loose => ({
@@ -170,9 +170,9 @@ describe("vendor roster parity", () => {
     });
   }
 
-  it("vendors matches vendors.json on installed/accounts per tool", () => {
+  it("vendors matches vendors.json on installed/accounts per tool", async () => {
     const py = golden("vendors.json") as Loose;
-    const { code, stdout } = runTs(["vendors", "--json"]);
+    const { code, stdout } = await runTs(["vendors", "--json"]);
     expect(code).toBe(0);
     const ts = JSON.parse(stdout) as Loose;
     const norm = (v: Loose): Loose => ({
@@ -183,9 +183,9 @@ describe("vendor roster parity", () => {
     expect(arr(ts["vendors"]).map(norm)).toEqual(arr(py["vendors"]).map(norm));
   });
 
-  it("vendors capabilities covers the same tools as Python", () => {
+  it("vendors capabilities covers the same tools as Python", async () => {
     const py = golden("vendors-capabilities.json") as Loose;
-    const { code, stdout } = runTs(["vendors", "capabilities", "--json"]);
+    const { code, stdout } = await runTs(["vendors", "capabilities", "--json"]);
     expect(code).toBe(0);
     const ts = JSON.parse(stdout) as Loose;
     expect(Object.keys(record(ts["vendors"])).sort()).toEqual(
@@ -195,9 +195,9 @@ describe("vendor roster parity", () => {
 });
 
 describe("usage parity", () => {
-  it("usage --json covers the same tools and account aliases", () => {
+  it("usage --json covers the same tools and account aliases", async () => {
     const py = golden("usage.json") as Loose;
-    const { code, stdout } = runTs(["usage", "--json"]);
+    const { code, stdout } = await runTs(["usage", "--json"]);
     expect(code).toBe(0);
     const ts = JSON.parse(stdout) as Loose;
     const names = (node: unknown): string[] =>
@@ -216,9 +216,9 @@ describe("usage parity", () => {
     }
   });
 
-  it("usage serves the stored vendor cache verbatim (Python cache oracle)", () => {
+  it("usage serves the stored vendor cache verbatim (Python cache oracle)", async () => {
     const oracle = golden("vendor-cache.json") as Record<string, Loose | null>;
-    const { code, stdout } = runTs(["usage", "muse", "opencode", "--json"]);
+    const { code, stdout } = await runTs(["usage", "muse", "opencode", "--json"]);
     expect(code).toBe(0);
     const ts = JSON.parse(stdout) as Loose;
     for (const t of arr(ts["tools"])) {
@@ -235,17 +235,17 @@ describe("usage parity", () => {
 });
 
 describe("config parity", () => {
-  it("config list matches config-list.json exactly", () => {
+  it("config list matches config-list.json exactly", async () => {
     const py = golden("config-list.json") as Loose;
-    const { code, stdout } = runTs(["config", "list", "--json"]);
+    const { code, stdout } = await runTs(["config", "list", "--json"]);
     expect(code).toBe(0);
     const ts = JSON.parse(stdout) as Loose;
     expect(ts["settings"]).toEqual(py["settings"]);
   });
 
-  it("config get matches config-get.json on key/value/isSet", () => {
+  it("config get matches config-get.json on key/value/isSet", async () => {
     const py = golden("config-get.json") as Loose;
-    const { code, stdout } = runTs(["config", "get", "autoswitch.threshold", "--json"]);
+    const { code, stdout } = await runTs(["config", "get", "autoswitch.threshold", "--json"]);
     expect(code).toBe(0);
     const ts = JSON.parse(stdout) as Loose;
     expect({ key: ts["key"], value: ts["value"], isSet: ts["isSet"] }).toEqual({
@@ -257,14 +257,14 @@ describe("config parity", () => {
 });
 
 describe("human output parity", () => {
-  it("alias matches alias.txt byte-for-byte", () => {
-    const { code, stdout } = runTs(["alias"]);
+  it("alias matches alias.txt byte-for-byte", async () => {
+    const { code, stdout } = await runTs(["alias"]);
     expect(code).toBe(0);
     expect(stdout).toBe(goldenText("alias.txt"));
   });
 
-  it("map matches map.txt byte-for-byte", () => {
-    const { code, stdout } = runTs(["map"]);
+  it("map matches map.txt byte-for-byte", async () => {
+    const { code, stdout } = await runTs(["map"]);
     expect(code).toBe(0);
     expect(stdout).toBe(goldenText("map.txt"));
   });
