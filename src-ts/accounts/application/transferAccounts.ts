@@ -275,10 +275,11 @@ export function importAccounts(
 
 
 function writeEncFile(root: string, slot: string, email: string, credsText: string): void {
+  // Every backup blob is base64 (Python `_atomic_b64_write` parity) — API-key
+  // raw strings included, or a later read would decode them into garbage.
   const file = backupCredentialPath(root, slot, email);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const body = credsText.trim().startsWith("{") ? encodeBackupCredentials(credsText) : `${credsText.trim()}\n`;
-  fs.writeFileSync(file, body);
+  fs.writeFileSync(file, encodeBackupCredentials(credsText));
 }
 
 // ---- import-usage --------------------------------------------------------------

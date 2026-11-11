@@ -42,11 +42,15 @@ import { liveIdentity } from "../adapters/liveIdentity.js";
 import {
   backupConfigPath,
   backupCredentialPath,
+  clearSlotBackups,
   encodeBackupCredentials,
   liveCredentialsPath,
   looksLikeApiKey,
   readBackupCredentials,
   readLiveCapture,
+  readSlotMaterial,
+  swapSlotMaterials,
+  writeSlotMaterial,
 } from "../adapters/liveCredentials.js";
 import { loadClaudeRoster } from "../adapters/roster.js";
 import {
@@ -245,22 +249,20 @@ export function swapAccounts(root: string, first: string, second: string): UseCa
     const reverse = new ReverseLog();
     const out = updateClaudeSequence(root, reverse, (seq) => {
       const r = swapMutation(seq, first, second, nowIso());
+      // Cross-write the file backups so credentials follow the account
+      // (Python swap parity); every path is reverse-recorded first.
+      // Keychain entries and session dirs stay in Python (see module header).
+      const emailA = seq.accounts[r.slotA]?.email ?? "";
+      const emailB = seq.accounts[r.slotB]?.email ?? "";
+      const matA = readSlotMaterial(root, r.slotA, emailA);
+      const matB = readSlotMaterial(root, r.slotB, emailB);
+      swapSlotMaterials(root, reverse, r.slotA, emailA, matA, r.slotB, emailB, matB);
       return { seq: r.doc, changed: [r.slotA, r.slotB], note: r.detail };
     });
-    // Rename per-slot backup files so credentials follow the account.
-    const before = snapshotSlots(root, out.changed);
-    void before;
     return ok(out.note, undefined, reverse);
   } catch (err) {
     return failed(err);
   }
-}
-
-function snapshotSlots(_root: string, _slots: string[]): null {
-  // Slot backup renames ride on the roster write as the commit point
-  // (Python parity: failure before the write rolls both slots back via the
-  // ReverseLog; per-file renames are registered by renameSlotBackups).
-  return null;
 }
 
 export function moveAccount(root: string, identifier: string, target: string): UseCaseResult {
@@ -272,7 +274,23 @@ export function moveAccount(root: string, identifier: string, target: string): U
     const reverse = new ReverseLog();
     const out = updateClaudeSequence(root, reverse, (seq) => {
       const r = moveMutation(seq, identifier, target, nowIso());
-      return { seq: r.doc, changed: [r.slot, String(r.target)], note: r.detail };
+      const targetSlot = String(r.target);
+      if (r.swapped) {
+        // Occupied target: the same cross-write as a swap.
+        const emailA = seq.accounts[r.slot]?.email ?? "";
+        const emailB = seq.accounts[targetSlot]?.email ?? "";
+        const matA = readSlotMaterial(root, r.slot, emailA);
+        const matB = readSlotMaterial(root, targetSlot, emailB);
+        swapSlotMaterials(root, reverse, r.slot, emailA, matA, targetSlot, emailB, matB);
+      } else if (r.slot !== targetSlot) {
+        // Empty target: relocate the material, then clear the stale key
+        // (Python move parity: write-or-actively-clear, old key cleared).
+        const email = seq.accounts[r.slot]?.email ?? "";
+        const mat = readSlotMaterial(root, r.slot, email);
+        writeSlotMaterial(root, reverse, targetSlot, email, mat);
+        clearSlotBackups(root, reverse, r.slot, email);
+      }
+      return { seq: r.doc, changed: [r.slot, targetSlot], note: r.detail };
     });
     return ok(out.note, undefined, reverse);
   } catch (err) {

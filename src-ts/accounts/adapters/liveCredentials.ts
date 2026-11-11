@@ -14,6 +14,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
+import { atomicWriteFile, type ReverseLog } from "../../platform/domain/atomicFile.js";
 import { readJsonFile, readTextFile } from "../../platform/domain/jsonFile.js";
 import { backupRoot, claudeConfigHome } from "../../platform/domain/paths.js";
 import { liveIdentity } from "./liveIdentity.js";
@@ -78,7 +79,90 @@ export function readBackupCredentials(filePath: string): string | null {
 }
 
 export function encodeBackupCredentials(credentials: string): string {
-  return `${Buffer.from(credentials, "utf-8").toString("base64")}\n`;
+  // Bare base64 text, no trailing newline (Python `_atomic_b64_write` parity).
+  return Buffer.from(credentials, "utf-8").toString("base64");
+}
+
+export interface SlotMaterial {
+  creds: string;
+  config: string;
+}
+
+/**
+ * A slot key's file backups; missing reads as "" and stays missing after a
+ * swap/move (Python `_read_backup_or_abort` missing-material parity). A
+ * backup that exists but cannot be read right now (locked macOS Keychain)
+ * also reads as "" — that edge stays in Python.
+ */
+export function readSlotMaterial(root: string, slot: string, email: string): SlotMaterial {
+  return {
+    creds: readBackupCredentials(backupCredentialPath(root, slot, email)) ?? "",
+    config: readTextFile(backupConfigPath(root, slot, email)) ?? "",
+  };
+}
+
+function writeMaterialFile(reverse: ReverseLog, file: string, text: string, encode: boolean): void {
+  reverse.record(file);
+  if (text === "") {
+    // Required-clear: the new owner must never adopt stale leaked material.
+    try {
+      fs.unlinkSync(file);
+    } catch {
+      // Already missing: the required-clear state.
+    }
+    return;
+  }
+  atomicWriteFile(file, encode ? encodeBackupCredentials(text) : text);
+}
+
+/**
+ * Set `(slot, email)`'s file backups to exact material ("" actively clears).
+ * Every touched path is reverse-recorded first, so rollback restores bytes.
+ */
+export function writeSlotMaterial(
+  root: string,
+  reverse: ReverseLog,
+  slot: string,
+  email: string,
+  material: SlotMaterial,
+): void {
+  writeMaterialFile(reverse, backupCredentialPath(root, slot, email), material.creds, true);
+  writeMaterialFile(reverse, backupConfigPath(root, slot, email), material.config, false);
+}
+
+/** Drop a slot key's backup files (post-commit stale-key cleanup). Best effort. */
+export function clearSlotBackups(root: string, reverse: ReverseLog, slot: string, email: string): void {
+  for (const file of [backupCredentialPath(root, slot, email), backupConfigPath(root, slot, email)]) {
+    reverse.record(file);
+    try {
+      fs.unlinkSync(file);
+    } catch {
+      // Already gone.
+    }
+  }
+}
+
+/**
+ * Cross-write two slots' file backups so credentials follow the account
+ * (Python swap parity), then clear the stale keys (post-commit cleanup).
+ * Same-email slots share key names, so no stale keys exist to clear.
+ */
+export function swapSlotMaterials(
+  root: string,
+  reverse: ReverseLog,
+  slotA: string,
+  emailA: string,
+  matA: SlotMaterial,
+  slotB: string,
+  emailB: string,
+  matB: SlotMaterial,
+): void {
+  writeSlotMaterial(root, reverse, slotB, emailA, matA);
+  writeSlotMaterial(root, reverse, slotA, emailB, matB);
+  if (emailA !== emailB) {
+    clearSlotBackups(root, reverse, slotA, emailA);
+    clearSlotBackups(root, reverse, slotB, emailB);
+  }
 }
 
 export interface CaptureResult {
