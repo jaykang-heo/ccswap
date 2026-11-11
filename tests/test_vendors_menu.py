@@ -317,6 +317,24 @@ def test_menu_usage_text_skips_missing_or_passed_resets():
     assert menu_usage_text(result, NOW) == "5h 50% · wk 43%"
 
 
+def test_menu_usage_text_shows_rolled_stale_muse_window_without_reset():
+    result = UsageResult(
+        UsageState.STALE,
+        windows=(
+            UsageWindow("five-hour", "5-hour window", "percent", used_percent=0.0, remaining=100.0),
+            UsageWindow(
+                "weekly",
+                "Weekly",
+                "percent",
+                used_percent=43.0,
+                resets_at=NOW + 3 * 86400 + 15 * 3600,
+            ),
+        ),
+        source="muse usage --json",
+    )
+    assert menu_usage_text(result, NOW) == "5h 0% · wk 43% (3d 15h)"
+
+
 def test_muse_account_rows_show_countdown_but_title_does_not():
     view = AccountView("muse", "jaykangheo", "browser",
                        identity={"email": "jaykangheo@gmail.com"}, active=True)

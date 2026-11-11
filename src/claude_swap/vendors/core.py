@@ -29,7 +29,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Protocol, runtime_checkable
 
 from claude_swap import spawn
@@ -207,6 +207,16 @@ class UsageWindow:
     note: str = ""
     resets_on: str | None = None  # ISO date when the vendor reports a day but no time
 
+    def rolled(self, now: float) -> UsageWindow:
+        """This window as it stands at ``now``, for a reading replayed after it was taken.
+
+        A percent window past the reset time the vendor reported has emptied, and the
+        next one has not started, so it has no reset time yet.
+        """
+        if self.unit != "percent" or self.resets_at is None or self.resets_at > now:
+            return self
+        return replace(self, used_percent=0.0, remaining=100.0, resets_at=None)
+
     def to_json(self) -> dict:
         return {
             "key": self.key,
@@ -316,6 +326,11 @@ class UsageResult:
     @property
     def has_data(self) -> bool:
         return bool(self.windows or self.observations)
+
+    def rolled(self, now: float) -> UsageResult:
+        """This reading with every window rolled to ``now`` (see ``UsageWindow.rolled``)."""
+        windows = tuple(w.rolled(now) for w in self.windows)
+        return self if windows == self.windows else replace(self, windows=windows)
 
     def to_json(self) -> dict:
         return {

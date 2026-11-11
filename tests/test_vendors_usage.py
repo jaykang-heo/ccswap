@@ -281,11 +281,11 @@ def test_opencode_per_account_usage_is_never_the_providers_total(tmp_path):
 # ---- Service: staleness, coalescing --------------------------------------------
 
 
-def muse_world(tmp_path, payload):
+def muse_world(tmp_path, payload, *, clock=time.time):
     r = FakeRunner({"muse": MUSE})
     r.on(MUSE, "--version", result=ok("Muse Code 1.4.14"))
     r.on(MUSE, "usage", "--json", result=payload)
-    return VendorService(ToolRegistry.default(r), VendorStore(tmp_path / "v")), r
+    return VendorService(ToolRegistry.default(r), VendorStore(tmp_path / "v"), clock=clock), r
 
 
 def test_failed_refresh_returns_last_good_as_stale_with_error(tmp_path):
@@ -295,6 +295,63 @@ def test_failed_refresh_returns_last_good_as_stale_with_error(tmp_path):
     stale = svc.usage("muse", refresh=True)
     assert stale.state is UsageState.STALE and stale.windows[0].used_percent == 0.0
     assert "network unreachable" in stale.error
+
+
+def test_failed_refresh_rolls_only_expired_muse_window(tmp_path, monkeypatch):
+    now = [2_000_000_000.0]
+    five_hour_reset = now[0] + 5 * 3600
+    weekly_reset = now[0] + 4 * 86400 + 12 * 3600
+    allowance = {
+        "tier": "Muse Code High Usage",
+        "window": {"usedPercent": 101, "resetsAtMs": int(five_hour_reset * 1000)},
+        "weekly": {"usedPercent": 43, "resetsAtMs": int(weekly_reset * 1000)},
+        "source": "mint",
+    }
+    svc, r = muse_world(
+        tmp_path,
+        ok(json.dumps({"allowance": allowance})),
+        clock=lambda: now[0],
+    )
+    monkeypatch.setattr(svc.adapter("muse"), "live_email", lambda: "muse@example.com")
+    svc.store.add(
+        AccountRecord("muse", "me", "browser", identity={"email": "muse@example.com"})
+    )
+
+    available = svc.usage("muse", "me")
+    assert available.state is UsageState.AVAILABLE
+    assert (available.windows[0].used_percent, available.windows[0].resets_at) == (
+        101.0,
+        five_hour_reset,
+    )
+    assert (available.windows[1].used_percent, available.windows[1].resets_at) == (
+        43.0,
+        weekly_reset,
+    )
+
+    r.on(
+        MUSE,
+        "usage",
+        "--json",
+        result=ok(json.dumps({"allowance": None, "reason": "server_sent_no_usage"})),
+    )
+    now[0] = five_hour_reset - 1
+    before_reset = svc.usage("muse", "me", refresh=True)
+    assert before_reset.state is UsageState.STALE
+    assert (
+        before_reset.windows[0].used_percent,
+        before_reset.windows[0].resets_at,
+    ) == (101.0, five_hour_reset)
+
+    now[0] = five_hour_reset + 1
+    after_reset = svc.usage("muse", "me", refresh=True)
+    assert after_reset.state is UsageState.STALE
+    five_hour, weekly = after_reset.windows
+    assert (five_hour.used_percent, five_hour.remaining, five_hour.resets_at) == (
+        0.0,
+        100.0,
+        None,
+    )
+    assert (weekly.used_percent, weekly.resets_at) == (43.0, weekly_reset)
 
 
 def test_no_earlier_data_means_a_plain_error_not_stale(tmp_path):

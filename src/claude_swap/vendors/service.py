@@ -292,7 +292,9 @@ class VendorService:
                 return cached[1]
             last = self.usage_store.get(tool, account_key)
             if last is not None:
-                return dataclasses.replace(last, state=UsageState.STALE, error=busy)
+                return dataclasses.replace(
+                    last.rolled(self._clock()), state=UsageState.STALE, error=busy
+                )
             return UsageResult(UsageState.ERROR, busy)
         try:
             now = self._clock()
@@ -462,7 +464,7 @@ class VendorService:
             return fresh, None
         return (
             dataclasses.replace(
-                last,
+                last.rolled(self._clock()),
                 state=UsageState.STALE,
                 error=fresh.reason or fresh.error or "refresh failed",
                 hint=last.hint,
