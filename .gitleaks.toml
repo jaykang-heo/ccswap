@@ -1,0 +1,12 @@
+# @jstack/standards-ts shared gitleaks preset.
+#
+# Gitleaks TOML has no `extends` mechanism, so every repo holds a byte-identical
+# copy of this file as `.gitleaks.toml` (distributed by the standards scaffold
+# template for non-ts stacks, or copied once for ts repos). `service check`
+# compares the copy's hash against standards/manifest.json.
+# Per-repo false positives live in that repo's own `.gitleaksignore`, never here.
+
+title = "jstack gitleaks preset"
+
+[extend]
+useDefault = true
