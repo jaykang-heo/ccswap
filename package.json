@@ -2,7 +2,7 @@
   "name": "ccswap-ts",
   "private": true,
   "version": "0.49.0",
-  "description": "TypeScript port of ccswap read-only commands (strangler wave 1)",
+  "description": "TypeScript port of ccswap commands (strangler wave 2: reads plus file-backed mutations)",
   "type": "module",
   "engines": {
     "node": ">=24"
