@@ -382,6 +382,21 @@ def test_usage_check_passes_only_when_every_account_has_numbers():
     assert usage_problems(stale, {}) == ["kiro: a1: stale: why"]
 
 
+def test_usage_check_passes_a_last_reading_that_still_has_numbers():
+    from claude_swap.vendors.cli import usage_problems
+    from claude_swap.vendors.core import AccountView, UsageResult, UsageState, UsageWindow
+    from claude_swap.vendors.overview import ToolSummary
+
+    idle = UsageResult(
+        UsageState.STALE,
+        windows=(UsageWindow("weekly", "Weekly", "percent", used_percent=43.0),),
+        error="The connected account returned no allowance data",
+    )
+    summary = ToolSummary("muse", "muse", installed=True)
+    summary.accounts = [(AccountView(tool="muse", alias="idle", kind="browser", registered=True), idle)]
+    assert usage_problems([summary], {"TBH_CREDENTIAL_BACKEND": "file"}) == []
+
+
 def test_usage_check_requires_one_muse_credential_backend():
     from claude_swap.vendors.cli import usage_problems
     from claude_swap.vendors.core import UsageState
