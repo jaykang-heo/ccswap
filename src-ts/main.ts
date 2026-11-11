@@ -691,7 +691,7 @@ function cmdExport(argv: string[], originalArgv: string[]): number {
 
 function cmdImport(argv: string[], originalArgv: string[]): number {
   const asJson = hasFlag(argv, "--json");
-  const rest = positionals(argv.slice(1));
+  const rest = positionals(argv);
   if (rest.length !== 1) return fail("Usage: ccswap import PATH [--force]", asJson, 2);
   const readSource = (source: string): string => {
     if (source === "-") return fs.readFileSync(0, "utf-8");

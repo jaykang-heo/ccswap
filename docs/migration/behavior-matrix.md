@@ -131,3 +131,41 @@ swap/move, unmap/unclaimed-purge, export/import, `config set/unset`,
 `upgrade`, `purge`, frontends) falls through to the Python CLI with args
 and exit code preserved. Mutating `alias`/`map` forms (with args) also
 fall through; only the zero-arg list forms are ported.
+
+## Wave-2 porting cut (file-backed commands + local probes)
+
+Ported to TypeScript in wave 2 (`src-ts/<context>/{domain,application,adapters}`,
+zod at every file boundary, a `ReverseLog` rollback for every state write —
+see `src-ts/platform/domain/atomicFile.ts`):
+
+- `switch [NUM|EMAIL] [--strategy …] [--json]` (direct, rotation, cached-usage
+  ranking), `add`, `add-token`, `remove --yes`, `disable`/`enable`,
+  `alias` set/`--unset`, `swap`, `move`, `map`/`unmap`, `unclaimed`/`--purge`,
+  `export`/`import`/`import-usage`, `config set`/`unset`
+- `codex add|remove|switch|status`, `agy remove`, `muse|opencode|kiro
+  add|remove|status|usage` (cached), `muse` api-key `switch --yes`
+- `usage [--refresh] [--check]` for muse/opencode probes; every other tool's
+  live probe stays in Python
+- `overview --json` and the `collectOverview`/`collectStatusline` backends
+  the menubar/raycast/tui frontends render from
+- `grok` as a known-but-unsupported tool (no Python counterpart): explicit
+  queries answer exit 0/3 with "no supported account mechanism yet", never
+  "unknown"; default tables (`vendors capabilities`, `usage`) exclude it so
+  Python output parity holds
+
+TS attempts a ported command when its inputs are local files; the use-case
+returns `handled: false` and the dispatcher falls through to Python with the
+original argv when it hits what TS does not do: macOS Keychain-only backups,
+live session-mode profiles, interactive prompts (no `--yes`), the browser
+OAuth flow (`relogin`), vendor-native/interactive flows (`opencode
+login/logout`, kiro/opencode `switch`, `run` exec, `auto` polling). Output
+parity is therefore exact on every path, including `claude <verb>` rewrites
+(`claude list|ls|usage` → `--list --provider claude`, all other established
+verbs pass through, unknown verbs exit 2 via Python).
+
+Deliberate divergences from current Python (no Python counterpart to be
+par with): explicit `grok` queries (above); `overview --json` (new surface
+for frontends); `statusline` rendering stays in Python (themed ANSI contract)
+while its data backend is ported. Swap/move migrate file backups only —
+Keychain entries and `.prev` generations are not moved (`.enc`-wins reads
+keep file state authoritative).
