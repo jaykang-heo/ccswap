@@ -69,11 +69,13 @@ calls on daemon threads too, so a hung CLI never delays quitting.
 
 ## Auto-switching
 
-Auto-switching needs (a) a quota that can be compared across accounts and (b) a switch that
-cannot disrupt running sessions. None of the three tools offers both, so
-`VendorService.auto_switch_state` reports `available: false` with the reason for each, and
-the existing Claude/Codex auto-switch engines are unchanged. Missing quota is never read as
-"unlimited".
+Auto-switching needs a quota that can be compared across accounts and a switch ccswap can
+make without a terminal. Muse has both: each browser login is measured on its own, and a
+switch swaps the login file. `vendors/muse_autoswitch.py` holds its engine, which runs on the
+shared `autoswitch.*` settings like the Codex engine, and the policy a lane uses to pick its
+key. A running Muse session keeps the previous login until it is restarted. Kiro and OpenCode
+report `available: false` with the reason through `VendorService.auto_switch_state`. Missing
+quota is never read as "unlimited".
 
 ## Switching, transactionally
 

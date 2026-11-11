@@ -64,7 +64,7 @@ def test_capabilities_are_honest(adapter):
     caps = adapter.capabilities(adapter.detect())
     by = {c.value: s.support.value for c, s in caps.items()}
     assert by["account-enumeration"] == "unsupported"
-    assert by["auto-switch"] == "unsupported"
+    assert by["auto-switch"] == "supported"
     assert by["switch"] == "supported" and by["usage"] == "supported"
 
 

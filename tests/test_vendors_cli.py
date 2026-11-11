@@ -283,10 +283,12 @@ def test_ambiguous_and_numeric_selectors(service, capsys, monkeypatch, tmp_path)
     assert service.resolve("muse", "1").alias == "Work"
 
 
-def test_auto_switch_is_disabled_with_reason_for_every_vendor(service):
-    for tool in ("muse", "opencode", "kiro"):
+def test_auto_switch_is_offered_for_muse_and_disabled_with_reason_elsewhere(service):
+    for tool in ("opencode", "kiro"):
         state = service.auto_switch_state(tool)
         assert state["available"] is False and state["reason"]
+    muse = service.auto_switch_state("muse")
+    assert muse["available"] is True and "muse auto" in muse["reason"]
 
 
 def test_argparse_rejects_secret_on_command_line(service, capsys):
@@ -420,6 +422,21 @@ def test_run_at_key_without_an_api_key_account_refuses(service, capsys, runner):
     assert code != 0
     assert "refusing to run on the global login" in err
     assert len(runner.calls) == n
+
+
+def test_muse_run_at_key_uses_the_login_with_most_room(service, capsys, monkeypatch, runner):
+    from claude_swap.vendors import muse_autoswitch
+
+    roomy = muse_autoswitch.LoginQuota(2, "roomy", "r@x.com", False, {"5h": 0.0, "7d": 43.0})
+    monkeypatch.setattr(muse_autoswitch, "lane_key", lambda service, settings: (roomy, "ROOMY-KEY"))
+    runner.on_interactive(MUSE, code=0)
+    code, _, err = run("muse", ["run", "@key", "--", "exec", "hi"], service, capsys)
+    assert code == 0 and "roomy" in err
+    call = runner.calls[-1]
+    assert call.argv == (MUSE, "exec", "hi") and call.env == {
+        "META_API_KEY": "ROOMY-KEY",
+        "TBH_CREDENTIAL_BACKEND": "file",
+    }
 
 
 def test_usage_check_fails_a_tool_that_timed_out():
