@@ -1948,6 +1948,35 @@ class ClaudeAccountSwitcher:
         """
         self._write_account_credentials(account_num, email, credentials)
 
+    def replace_slot_login(
+        self, account_num: str, email: str, org_uuid: str, credentials: str
+    ) -> bool:
+        """Store a fresh login for a slot; True when the live store took it too.
+
+        The new login starts a new refresh lineage, so it replaces the slot
+        backup under the same locks the refresh persist takes. When the slot
+        is the live account, Claude Code's store gets it as well, with the
+        live copy's shared fields (``mcpOAuth``) kept, exactly as a
+        ``/login`` would leave it.
+        """
+        with (
+            FileLock(self.credentials_dir / f".consume-{account_num}.lock"),
+            FileLock(self.lock_file),
+            claude_credentials_lock(),
+        ):
+            self._write_account_credentials(account_num, email, credentials)
+            self._usage_store.clear_dead_token(
+                [account_num], {account_num: (email, org_uuid)}
+            )
+            if not self._live_identity_matches(email, org_uuid):
+                return False
+            live = self._read_credentials()
+            with claude_config_lock():
+                self._write_credentials(
+                    self._prepare_credentials_for_activation(credentials, live)
+                )
+            return True
+
     def read_account_config(self, account_num: str, email: str) -> str:
         """Public wrapper for session bootstrap. Empty string when missing."""
         return self._read_account_config(account_num, email)
