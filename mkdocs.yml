@@ -1,0 +1,6 @@
+site_name: ccswap
+site_description: ccswap docs
+theme:
+  name: material
+plugins:
+  - techdocs-core
