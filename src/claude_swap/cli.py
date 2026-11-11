@@ -1356,7 +1356,7 @@ def _menubar_service(args) -> int:
         from claude_swap.vendors.cli import usage_problems
         from claude_swap.vendors.overview import Overview
 
-        # Fail here, not on the menu bar: every account must have a reading first.
+        # Fail here, not on the menu bar: every account must have numbers to show first.
         problems = usage_problems(Overview().collect(None, refresh=True), os.environ)
         if problems:
             for problem in problems:
