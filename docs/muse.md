@@ -15,8 +15,10 @@ details and evidence: [vendor-compatibility.md](vendor-compatibility.md#muse-cod
   window and the weekly window, each with its used % and reset time. Muse reports
   percentages only, so ccswap never shows a made-up "N of M". Muse reports no allowance for
   any API-key sign-in (`api_key`), even for the Muse Code subscription key that the CLI login
-  mints, and a new window can be empty (`server_sent_no_usage`); both are shown as
-  *unavailable* with the reason, never as 0%. Whether a key is the subscription key or a
+  mints, and a new window can be empty (`server_sent_no_usage`). With no earlier reading,
+  both are shown as *unavailable* with the reason. An account's earlier reading is kept, and
+  a window past its reset time is shown as 0% with no reset time, because that window has
+  emptied and the next one has not started. Whether a key is the subscription key or a
   pay-as-you-go key is shown only on dev.meta.ai/api-keys.
 - Every account is measured **one by one** without touching the live login. A browser
   login runs `muse usage --json` with its stored copy in a throwaway
