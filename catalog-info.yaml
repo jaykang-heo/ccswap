@@ -1,0 +1,16 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ccswap
+  description: Multi-account and usage manager for Claude Code, Codex, and other coding CLIs
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+spec:
+  type: service
+  system: account-management
+  owner: group:default/captain
+  lifecycle: production
+  stacks: [ts, python]
+  standardsPins:
+    ts: 0.1.0
+    python: 0.1.0
