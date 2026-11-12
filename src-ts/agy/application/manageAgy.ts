@@ -4,14 +4,14 @@
  * external-change verification) and stay in Python.
  */
 
-import { ReverseLog } from "../../platform/domain/atomicFile.js";
-import { backupRoot } from "../../platform/domain/paths.js";
-import { failed, ok, unhandled, type UseCaseResult } from "../../accounts/application/manageAccounts.js";
-import { dropAgySidecars, updateAgy } from "../adapters/agyStore.js";
+import { ReverseLog } from '../../platform/domain/atomicFile.js';
+import { backupRoot } from '../../platform/domain/paths.js';
+import { failed, ok, unhandled, type UseCaseResult } from '../../accounts/application/manageAccounts.js';
+import { dropAgySidecars, updateAgy } from '../adapters/agyStore.js';
 
 export function agyRemove(root: string = backupRoot(), identifier: string, assumeYes = false): UseCaseResult {
   try {
-    if (!assumeYes) return unhandled("agy remove without --yes needs a confirmation prompt");
+    if (!assumeYes) return unhandled('agy remove without --yes needs a confirmation prompt');
     const reverse = new ReverseLog();
     const detail = updateAgy(root, reverse, (doc) => {
       const id = identifier.trim();
@@ -37,7 +37,7 @@ export function agyRemove(root: string = backupRoot(), identifier: string, assum
       if (slot === null || doc.accounts[slot] === undefined) {
         throw new Error(`No account found with identifier: ${identifier}`);
       }
-      const email = doc.accounts[slot]?.email ?? "?";
+      const email = doc.accounts[slot]?.email ?? '?';
       const { [slot]: _droppedAgy, ...kept } = doc.accounts;
       void _droppedAgy;
       const next = { ...doc, accounts: kept };

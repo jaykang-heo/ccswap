@@ -8,21 +8,27 @@
  * from `{}` over a hand-recoverable file). Every write has a reverse entry.
  */
 
-import fs from "node:fs";
-import path from "node:path";
-import { ReverseLog } from "../../platform/domain/atomicFile.js";
-import { ConfigError } from "../../platform/domain/errors.js";
-import { ACTION_KEYS, effectiveValue, SETTING_SPECS, type SettingSpec } from "../domain/settings.js";
-import { failed, ok, unhandled, type UseCaseResult } from "../../accounts/application/manageAccounts.js";
-import { backupRoot } from "../../platform/domain/paths.js";
+import fs from 'node:fs';
+import path from 'node:path';
+import { ReverseLog } from '../../platform/domain/atomicFile.js';
+import { ConfigError } from '../../platform/domain/errors.js';
+import { ACTION_KEYS, effectiveValue, SETTING_SPECS, type SettingSpec } from '../domain/settings.js';
+import { failed, ok, unhandled, type UseCaseResult } from '../../accounts/application/manageAccounts.js';
+import { backupRoot } from '../../platform/domain/paths.js';
 
 const BOOL_WORDS: Record<string, boolean> = {
-  true: true, "1": true, yes: true, on: true,
-  false: false, "0": false, no: false, off: false,
+  true: true,
+  '1': true,
+  yes: true,
+  on: true,
+  false: false,
+  '0': false,
+  no: false,
+  off: false,
 };
 
 export function parseSettingValue(spec: SettingSpec, rawValue: string): unknown {
-  if (spec.kind === "bool") {
+  if (spec.kind === 'bool') {
     const parsed = BOOL_WORDS[rawValue.trim().toLowerCase()];
     if (parsed === undefined) {
       throw new ConfigError(
@@ -31,29 +37,29 @@ export function parseSettingValue(spec: SettingSpec, rawValue: string): unknown 
     }
     return parsed;
   }
-  if (spec.kind === "choice") {
+  if (spec.kind === 'choice') {
     if (!spec.choices.includes(rawValue)) {
-      throw new ConfigError(`${spec.dotted} must be one of: ${spec.choices.join(", ")}`);
+      throw new ConfigError(`${spec.dotted} must be one of: ${spec.choices.join(', ')}`);
     }
     return rawValue;
   }
-  if (spec.kind === "string") {
+  if (spec.kind === 'string') {
     const value = rawValue.trim();
-    if (value === "") {
+    if (value === '') {
       throw new ConfigError(
         `${spec.dotted} expects a non-empty value; use 'ccswap config unset ${spec.dotted}' to clear it`,
       );
     }
     return value;
   }
-  if (spec.kind === "model_thresholds") {
+  if (spec.kind === 'model_thresholds') {
     return parseModelThresholdsStrict(spec, rawValue);
   }
-  const kind = spec.kind === "optional_float" ? "float" : spec.kind;
-  const num = kind === "int" ? Number.parseInt(rawValue, 10) : Number(rawValue);
-  if (!Number.isFinite(num) || (kind === "int" && !Number.isInteger(Number(rawValue)))) {
-    const noun = kind === "int" ? "an integer" : "a number";
-    const hint = spec.default === null ? `; use 'ccswap config unset ${spec.dotted}' to clear it` : "";
+  const kind = spec.kind === 'optional_float' ? 'float' : spec.kind;
+  const num = kind === 'int' ? Number.parseInt(rawValue, 10) : Number(rawValue);
+  if (!Number.isFinite(num) || (kind === 'int' && !Number.isInteger(Number(rawValue)))) {
+    const noun = kind === 'int' ? 'an integer' : 'a number';
+    const hint = spec.default === null ? `; use 'ccswap config unset ${spec.dotted}' to clear it` : '';
     throw new ConfigError(`${spec.dotted} expects ${noun}, got '${rawValue}'${hint}`);
   }
   const lo = spec.lo ?? -Infinity;
@@ -66,19 +72,24 @@ export function parseSettingValue(spec: SettingSpec, rawValue: string): unknown 
 
 function parseModelThresholdsStrict(spec: SettingSpec, rawValue: string): string {
   // "Fable=40, Opus=70": names non-empty, values in the per-gate bounds.
-  const parts = rawValue.split(",").map((p) => p.trim()).filter((p) => p !== "");
+  const parts = rawValue
+    .split(',')
+    .map((p) => p.trim())
+    .filter((p) => p !== '');
   if (parts.length === 0) throw new ConfigError(`${spec.dotted} expects e.g. 'Fable=40'`);
   const lo = 1;
   const hi = 99.9;
   const seen = new Set<string>();
   const out: string[] = [];
   for (const part of parts) {
-    const eq = part.indexOf("=");
+    const eq = part.indexOf('=');
     if (eq < 0) throw new ConfigError(`${spec.dotted}: bad pair '${part}' (want Name=percent)`);
     const name = part.slice(0, eq).trim();
     const num = Number(part.slice(eq + 1).trim());
-    if (name === "" || !Number.isFinite(num) || num < lo || num > hi) {
-      throw new ConfigError(`${spec.dotted}: bad pair '${part}' (want Name=percent in ${String(lo)}..${String(hi)})`);
+    if (name === '' || !Number.isFinite(num) || num < lo || num > hi) {
+      throw new ConfigError(
+        `${spec.dotted}: bad pair '${part}' (want Name=percent in ${String(lo)}..${String(hi)})`,
+      );
     }
     const key = name.toLowerCase();
     if (!seen.has(key)) {
@@ -86,39 +97,37 @@ function parseModelThresholdsStrict(spec: SettingSpec, rawValue: string): string
       out.push(`${name}=${part.slice(eq + 1).trim()}`);
     }
   }
-  return out.join(",");
+  return out.join(',');
 }
 
 export function settingsPathFor(root: string): string {
-  return path.join(root, "settings.json");
+  return path.join(root, 'settings.json');
 }
 
 /** Raw read for the write path: corrupt errors, missing → {}. */
 function readRawForWrite(file: string): Record<string, unknown> {
   let text: string;
   try {
-    text = fs.readFileSync(file, "utf-8");
+    text = fs.readFileSync(file, 'utf-8');
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return {};
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {};
     throw new ConfigError(`could not read ${file}: ${(err as Error).message}`);
   }
   let raw: unknown;
   try {
     raw = JSON.parse(text) as unknown;
   } catch (err) {
-    throw new ConfigError(`${file} is not valid JSON (${(err as Error).message}); fix or delete it before changing settings`);
+    throw new ConfigError(
+      `${file} is not valid JSON (${(err as Error).message}); fix or delete it before changing settings`,
+    );
   }
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     throw new ConfigError(`${file} is not a JSON object; fix or delete it before changing settings`);
   }
   return raw as Record<string, unknown>;
 }
 
-export function configSet(
-  root: string = backupRoot(),
-  dottedKey: string,
-  rawValue: string,
-): UseCaseResult {
+export function configSet(root: string = backupRoot(), dottedKey: string, rawValue: string): UseCaseResult {
   try {
     const spec = SETTING_SPECS.find((s) => s.dotted === dottedKey);
     if (!spec) {
@@ -131,10 +140,11 @@ export function configSet(
     const reverse = new ReverseLog();
     const file = settingsPathFor(root);
     const raw = readRawForWrite(file);
-    raw["schemaVersion"] = typeof raw["schemaVersion"] === "number" ? raw["schemaVersion"] : 1;
-    const section = typeof raw[spec.section] === "object" && raw[spec.section] !== null
-      ? { ...(raw[spec.section] as Record<string, unknown>) }
-      : {};
+    raw['schemaVersion'] = typeof raw['schemaVersion'] === 'number' ? raw['schemaVersion'] : 1;
+    const section =
+      typeof raw[spec.section] === 'object' && raw[spec.section] !== null
+        ? { ...(raw[spec.section] as Record<string, unknown>) }
+        : {};
     section[spec.jsonKey] = value;
     raw[spec.section] = section;
     reverse.record(file);
@@ -160,12 +170,19 @@ export function configUnset(root: string = backupRoot(), dottedKey: string): Use
     const file = settingsPathFor(root);
     const raw = readRawForWrite(file);
     const section = raw[spec.section];
-    if (typeof section !== "object" || section === null || !((section as Record<string, unknown>)[spec.jsonKey] !== undefined)) {
+    if (
+      typeof section !== 'object' ||
+      section === null ||
+      !((section as Record<string, unknown>)[spec.jsonKey] !== undefined)
+    ) {
       return ok(`${spec.dotted} was not set`, { key: spec.dotted, removed: false }, reverse);
     }
     const { [spec.jsonKey]: _removedKey, ...next } = section as Record<string, unknown>;
     void _removedKey;
-    const out: Record<string, unknown> = { ...raw, schemaVersion: typeof raw["schemaVersion"] === "number" ? raw["schemaVersion"] : 1 };
+    const out: Record<string, unknown> = {
+      ...raw,
+      schemaVersion: typeof raw['schemaVersion'] === 'number' ? raw['schemaVersion'] : 1,
+    };
     if (Object.keys(next).length === 0) {
       const { [spec.section]: _removedSection, ...rest } = out;
       void _removedSection;

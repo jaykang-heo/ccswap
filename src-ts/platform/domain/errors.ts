@@ -8,7 +8,7 @@ export class CcswapError extends Error {
   readonly exitCode: number;
   constructor(message: string, exitCode = 1) {
     super(message);
-    this.name = "CcswapError";
+    this.name = 'CcswapError';
     this.exitCode = exitCode;
   }
 }
@@ -16,36 +16,33 @@ export class CcswapError extends Error {
 export class ValidationError extends CcswapError {
   constructor(message: string) {
     super(message, 1);
-    this.name = "ValidationError";
+    this.name = 'ValidationError';
   }
 }
 
 export class AccountNotFoundError extends CcswapError {
   constructor(message: string) {
     super(message, 1);
-    this.name = "AccountNotFoundError";
+    this.name = 'AccountNotFoundError';
   }
 }
 
 export class ConfigError extends CcswapError {
   constructor(message: string) {
     super(message, 1);
-    this.name = "ConfigError";
+    this.name = 'ConfigError';
   }
 }
 
 export class UnsupportedCapability extends CcswapError {
   constructor(message: string) {
     super(message, EXIT_UNSUPPORTED);
-    this.name = "UnsupportedCapability";
+    this.name = 'UnsupportedCapability';
   }
 }
 
 export function isInterrupt(err: unknown): boolean {
   return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    (err as { code?: string }).code === "SIGINT"
+    typeof err === 'object' && err !== null && 'code' in err && (err as { code?: string }).code === 'SIGINT'
   );
 }

@@ -7,16 +7,16 @@
  * so rollback restores the pre-mutation layout.
  */
 
-import fs from "node:fs";
-import path from "node:path";
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   atomicWriteFile,
   atomicWriteJson,
   ReverseLog,
   withFileLock,
-} from "../../platform/domain/atomicFile.js";
-import { readJsonFile } from "../../platform/domain/jsonFile.js";
-import { backupRoot } from "../../platform/domain/paths.js";
+} from '../../platform/domain/atomicFile.js';
+import { readJsonFile } from '../../platform/domain/jsonFile.js';
+import { backupRoot } from '../../platform/domain/paths.js';
 import {
   type AgyAccounts,
   agyAccountsSchema,
@@ -24,7 +24,7 @@ import {
   claudeSequenceSchema,
   type CodexSequence,
   codexSequenceSchema,
-} from "../domain/sequence.js";
+} from '../domain/sequence.js';
 
 export interface UpdateReceipt {
   reverse: ReverseLog;
@@ -36,15 +36,15 @@ function recordIfExists(reverse: ReverseLog, filePath: string): void {
 }
 
 function claudeSequencePath(root: string): string {
-  return path.join(root, "sequence.json");
+  return path.join(root, 'sequence.json');
 }
 
 function codexSequencePath(root: string): string {
-  return path.join(root, "codex", "sequence.json");
+  return path.join(root, 'codex', 'sequence.json');
 }
 
 function agyAccountsPath(root: string): string {
-  return path.join(root, "agy", "accounts.json");
+  return path.join(root, 'agy', 'accounts.json');
 }
 
 /** Locked read-modify-write of `sequence.json` with zod + reverse. */
@@ -57,7 +57,7 @@ export function updateClaudeSequence(
     const file = claudeSequencePath(root);
     const raw = readJsonFile(file);
     if (raw === null) {
-      throw new ConfigError("No accounts are managed yet");
+      throw new ConfigError('No accounts are managed yet');
     }
     const seq = claudeSequenceSchema.parse(raw) as ClaudeSequence;
     const out = mutate(structuredClone(seq));
@@ -67,23 +67,23 @@ export function updateClaudeSequence(
   });
 }
 
-import { ConfigError } from "../../platform/domain/errors.js";
+import { ConfigError } from '../../platform/domain/errors.js';
 
 export function readClaudeSequenceOrThrow(root: string): ClaudeSequence {
   const raw = readJsonFile(claudeSequencePath(root));
-  if (raw === null) throw new ConfigError("No accounts are managed yet");
+  if (raw === null) throw new ConfigError('No accounts are managed yet');
   return claudeSequenceSchema.parse(raw) as ClaudeSequence;
 }
 
 export function readCodexSequenceOrThrow(root: string): CodexSequence {
   const raw = readJsonFile(codexSequencePath(root));
-  if (raw === null) throw new ConfigError("No Codex accounts are managed yet");
+  if (raw === null) throw new ConfigError('No Codex accounts are managed yet');
   return codexSequenceSchema.parse(raw) as CodexSequence;
 }
 
 export function readAgyAccountsOrThrow(root: string): AgyAccounts {
   const raw = readJsonFile(agyAccountsPath(root));
-  if (raw === null) throw new ConfigError("No Antigravity accounts are managed yet");
+  if (raw === null) throw new ConfigError('No Antigravity accounts are managed yet');
   return agyAccountsSchema.parse(raw) as AgyAccounts;
 }
 

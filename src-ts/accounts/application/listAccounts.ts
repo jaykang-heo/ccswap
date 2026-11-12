@@ -1,10 +1,10 @@
 /** Application: read-only account listing payloads (roster + cached usage). */
 
-import { loadAgyRoster, loadClaudeRoster, loadCodexRoster, normalizeClaude } from "../adapters/roster.js";
-import { liveIdentity } from "../adapters/liveIdentity.js";
-import { backupRoot } from "../../platform/domain/paths.js";
-import type { NormalizedAccount } from "../domain/sequence.js";
-import { loadClaudeUsage } from "../../usage/application/readUsage.js";
+import { loadAgyRoster, loadClaudeRoster, loadCodexRoster, normalizeClaude } from '../adapters/roster.js';
+import { liveIdentity } from '../adapters/liveIdentity.js';
+import { backupRoot } from '../../platform/domain/paths.js';
+import type { NormalizedAccount } from '../domain/sequence.js';
+import { loadClaudeUsage } from '../../usage/application/readUsage.js';
 
 export interface AccountsPayload {
   schemaVersion: 1;
@@ -13,7 +13,7 @@ export interface AccountsPayload {
   accounts: (NormalizedAccount & { usageCached: boolean })[];
   active: string | null;
   /** Where `active` came from: live login, or a wave-1 gap. */
-  activeSource: "live" | "unimplemented";
+  activeSource: 'live' | 'unimplemented';
   rosterUnreadable: boolean;
 }
 
@@ -33,14 +33,12 @@ export function claudeActiveSlot(root?: string): string | null {
       .find((n) => {
         const rec = sequence.accounts[n];
         return (
-          rec !== undefined &&
-          rec.email === live.email &&
-          rec.organizationUuid === live.organizationUuid
+          rec !== undefined && rec.email === live.email && rec.organizationUuid === live.organizationUuid
         );
       }) ?? null
   );
 }
-function withUsage(accounts: NormalizedAccount[], root: string): AccountsPayload["accounts"] {
+function withUsage(accounts: NormalizedAccount[], root: string): AccountsPayload['accounts'] {
   const usage = new Map(loadClaudeUsage(root).map((u) => [u.slot, u]));
   return accounts.map((a) => ({ ...a, usageCached: usage.has(a.slot) }));
 }
@@ -52,11 +50,11 @@ export function claudeAccountsPayload(root?: string): AccountsPayload {
   const accounts = normalizeClaude(sequence, active).map((a) => a);
   return {
     schemaVersion: 1,
-    provider: "claude",
+    provider: 'claude',
     liveRefresh: false,
     accounts: withUsage(accounts, resolved),
     active,
-    activeSource: "live" as const,
+    activeSource: 'live' as const,
     rosterUnreadable: unreadable,
   };
 }
@@ -79,16 +77,16 @@ export function codexAccountsPayload(root?: string): AccountsPayload {
       // is not implemented; active stays null (Python parity when logged out).
       active: false,
       disabled: rec.disabled,
-      organizationName: "",
+      organizationName: '',
     });
   }
   return {
     schemaVersion: 1,
-    provider: "codex",
+    provider: 'codex',
     liveRefresh: false,
     accounts: accounts.map((a) => ({ ...a, usageCached: false })),
     active: null,
-    activeSource: "unimplemented" as const,
+    activeSource: 'unimplemented' as const,
     rosterUnreadable: unreadable,
   };
 }
@@ -103,25 +101,25 @@ export function agyAccountsPayload(root?: string): AccountsPayload {
     // implemented; active stays null (Python parity when logged out).
     active: false,
     disabled: false,
-    organizationName: "",
+    organizationName: '',
   }));
   return {
     schemaVersion: 1,
-    provider: "agy",
+    provider: 'agy',
     liveRefresh: false,
     accounts: list.map((a) => ({ ...a, usageCached: false })),
     active: null,
-    activeSource: "unimplemented" as const,
+    activeSource: 'unimplemented' as const,
     rosterUnreadable: unreadable,
   };
 }
 
-export function renderAccountsHuman(provider: string, accounts: AccountsPayload["accounts"]): string[] {
+export function renderAccountsHuman(provider: string, accounts: AccountsPayload['accounts']): string[] {
   if (accounts.length === 0) return [`No ${provider} accounts registered.`];
   return accounts.map((a) => {
-    const mark = a.active ? "*" : " ";
-    const alias = a.alias !== null ? ` (alias: ${a.alias})` : "";
-    const disabled = a.disabled ? " [disabled]" : "";
+    const mark = a.active ? '*' : ' ';
+    const alias = a.alias !== null ? ` (alias: ${a.alias})` : '';
+    const disabled = a.disabled ? ' [disabled]' : '';
     return `${mark} [${a.slot}] ${a.email}${alias}${disabled}`;
   });
 }

@@ -1,28 +1,28 @@
 /** Locked Agy store: `agy/accounts.json` + per-account sidecars. */
 
-import fs from "node:fs";
-import path from "node:path";
-import { ReverseLog, withFileLock } from "../../platform/domain/atomicFile.js";
-import { readJsonFile } from "../../platform/domain/jsonFile.js";
-import { backupRoot } from "../../platform/domain/paths.js";
-import { ConfigError } from "../../platform/domain/errors.js";
-import { type AgyRoster, agyRosterSchema } from "../domain/agyRoster.js";
+import fs from 'node:fs';
+import path from 'node:path';
+import { ReverseLog, withFileLock } from '../../platform/domain/atomicFile.js';
+import { readJsonFile } from '../../platform/domain/jsonFile.js';
+import { backupRoot } from '../../platform/domain/paths.js';
+import { ConfigError } from '../../platform/domain/errors.js';
+import { type AgyRoster, agyRosterSchema } from '../domain/agyRoster.js';
 
 export function agyDir(root: string = backupRoot()): string {
-  return path.join(root, "agy");
+  return path.join(root, 'agy');
 }
 
 export function agyAccountsFile(root: string = backupRoot()): string {
-  return path.join(agyDir(root), "accounts.json");
+  return path.join(agyDir(root), 'accounts.json');
 }
 
 export function readAgyRoster(root: string): AgyRoster {
   const raw = readJsonFile(agyAccountsFile(root));
-  if (raw === null) throw new ConfigError("Cannot access Antigravity account storage");
+  if (raw === null) throw new ConfigError('Cannot access Antigravity account storage');
   try {
     return agyRosterSchema.parse(raw);
   } catch {
-    throw new ConfigError("Cannot access Antigravity account storage");
+    throw new ConfigError('Cannot access Antigravity account storage');
   }
 }
 
@@ -43,10 +43,7 @@ export function updateAgy<T>(
 }
 
 export function agySidecars(root: string, slot: string): string[] {
-  return [
-    path.join(agyDir(root), `account-${slot}.json`),
-    path.join(agyDir(root), `usage-${slot}.json`),
-  ];
+  return [path.join(agyDir(root), `account-${slot}.json`), path.join(agyDir(root), `usage-${slot}.json`)];
 }
 
 export function dropAgySidecars(root: string, reverse: ReverseLog, slot: string): void {

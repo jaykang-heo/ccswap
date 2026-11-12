@@ -1,159 +1,92 @@
 [
   {
     "file": "list.json",
-    "argv": [
-      "list",
-      "--json"
-    ],
+    "argv": ["list", "--json"],
     "exit": 0
   },
   {
     "file": "list-claude.json",
-    "argv": [
-      "list",
-      "--json",
-      "--provider",
-      "claude"
-    ],
+    "argv": ["list", "--json", "--provider", "claude"],
     "exit": 0
   },
   {
     "file": "list-codex.json",
-    "argv": [
-      "list",
-      "--json",
-      "--provider",
-      "codex"
-    ],
+    "argv": ["list", "--json", "--provider", "codex"],
     "exit": 0
   },
   {
     "file": "status.json",
-    "argv": [
-      "status",
-      "--json"
-    ],
+    "argv": ["status", "--json"],
     "exit": 0
   },
   {
     "file": "claude-list.json",
-    "argv": [
-      "claude",
-      "list",
-      "--json"
-    ],
+    "argv": ["claude", "list", "--json"],
     "exit": 0
   },
   {
     "file": "codex-list.json",
-    "argv": [
-      "codex",
-      "list",
-      "--json"
-    ],
+    "argv": ["codex", "list", "--json"],
     "exit": 0
   },
   {
     "file": "agy-list.json",
-    "argv": [
-      "agy",
-      "list",
-      "--json"
-    ],
+    "argv": ["agy", "list", "--json"],
     "exit": 0
   },
   {
     "file": "agy-status.json",
-    "argv": [
-      "agy",
-      "status",
-      "--json"
-    ],
+    "argv": ["agy", "status", "--json"],
     "exit": 0
   },
   {
     "file": "muse-list.json",
-    "argv": [
-      "muse",
-      "list",
-      "--json"
-    ],
+    "argv": ["muse", "list", "--json"],
     "exit": 0
   },
   {
     "file": "kiro-list.json",
-    "argv": [
-      "kiro",
-      "list",
-      "--json"
-    ],
+    "argv": ["kiro", "list", "--json"],
     "exit": 0
   },
   {
     "file": "vendors.json",
-    "argv": [
-      "vendors",
-      "--json"
-    ],
+    "argv": ["vendors", "--json"],
     "exit": 0
   },
   {
     "file": "vendors-capabilities.json",
-    "argv": [
-      "vendors",
-      "capabilities",
-      "--json"
-    ],
+    "argv": ["vendors", "capabilities", "--json"],
     "exit": 0
   },
   {
     "file": "usage.json",
-    "argv": [
-      "usage",
-      "--json"
-    ],
+    "argv": ["usage", "--json"],
     "exit": 0
   },
   {
     "file": "usage-muse.json",
-    "argv": [
-      "usage",
-      "muse",
-      "--json"
-    ],
+    "argv": ["usage", "muse", "--json"],
     "exit": 0
   },
   {
     "file": "config-list.json",
-    "argv": [
-      "config",
-      "list",
-      "--json"
-    ],
+    "argv": ["config", "list", "--json"],
     "exit": 0
   },
   {
     "file": "config-get.json",
-    "argv": [
-      "config",
-      "get",
-      "autoswitch.threshold",
-      "--json"
-    ],
+    "argv": ["config", "get", "autoswitch.threshold", "--json"],
     "exit": 0
   },
   {
     "file": "alias.txt",
-    "argv": [
-      "alias"
-    ],
+    "argv": ["alias"],
     "exit": 0
   },
   {
     "file": "map.txt",
-    "argv": [
-      "map"
-    ],
+    "argv": ["map"],
     "exit": 0
   }
 ]

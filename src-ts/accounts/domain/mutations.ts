@@ -5,20 +5,9 @@
  * `adapters/rosterStore.ts`; these functions never touch the filesystem.
  */
 
-import {
-  type AgyAccounts,
-  type ClaudeSequence,
-  type CodexSequence,
-} from "./sequence.js";
-import {
-  normalizeAlias,
-  resolveClaudeSlot,
-} from "../../platform/domain/identifiers.js";
-import {
-  AccountNotFoundError,
-  ConfigError,
-  ValidationError,
-} from "../../platform/domain/errors.js";
+import { type AgyAccounts, type ClaudeSequence, type CodexSequence } from './sequence.js';
+import { normalizeAlias, resolveClaudeSlot } from '../../platform/domain/identifiers.js';
+import { AccountNotFoundError, ConfigError, ValidationError } from '../../platform/domain/errors.js';
 
 export interface MutationResult<T> {
   doc: T;
@@ -89,7 +78,7 @@ export function setDisabledMutation(
       accounts: { ...seq.accounts, [slot]: { ...record, disabled } },
       lastUpdated: nowIso,
     },
-    detail: `${disabled ? "Disabled" : "Enabled"} Account ${slot}`,
+    detail: `${disabled ? 'Disabled' : 'Enabled'} Account ${slot}`,
   };
 }
 
@@ -101,19 +90,14 @@ export interface RemoveMutation {
 }
 
 /** Remove the account row; file/keychain/mapping cleanup is the adapter's job. */
-export function removeMutation(
-  seq: ClaudeSequence,
-  identifier: string,
-  nowIso: string,
-): RemoveMutation {
+export function removeMutation(seq: ClaudeSequence, identifier: string, nowIso: string): RemoveMutation {
   const slot = resolveClaudeSlot(seq.accounts, identifier);
   const record = seq.accounts[slot];
   if (!record) throw new AccountNotFoundError(`Account-${slot} does not exist`);
   const { [slot]: _removedSlot, ...accounts } = seq.accounts;
   void _removedSlot;
   const sequence = seq.sequence.filter((n) => String(n) !== slot);
-  const wasActive =
-    seq.activeAccountNumber !== null && String(seq.activeAccountNumber) === slot;
+  const wasActive = seq.activeAccountNumber !== null && String(seq.activeAccountNumber) === slot;
   const remaining = sequence.length > 0 ? [...sequence].sort((a, b) => a - b)[0] : null;
   return {
     doc: {
@@ -144,11 +128,11 @@ export function swapMutation(
   const slotA = resolveClaudeSlot(seq.accounts, first);
   const slotB = resolveClaudeSlot(seq.accounts, second);
   if (slotA === slotB) {
-    throw new ValidationError("Cannot swap an account with itself");
+    throw new ValidationError('Cannot swap an account with itself');
   }
   const recA = seq.accounts[slotA];
   const recB = seq.accounts[slotB];
-  if (!recA || !recB) throw new AccountNotFoundError("Account does not exist");
+  if (!recA || !recB) throw new AccountNotFoundError('Account does not exist');
   const accounts = { ...seq.accounts, [slotA]: recB, [slotB]: recA };
   const sequence = [...seq.sequence].sort((a, b) => a - b);
   const mapActive = (n: number | null): number | null => {
@@ -158,7 +142,13 @@ export function swapMutation(
     return n;
   };
   return {
-    doc: { ...seq, accounts, sequence, activeAccountNumber: mapActive(seq.activeAccountNumber), lastUpdated: nowIso },
+    doc: {
+      ...seq,
+      accounts,
+      sequence,
+      activeAccountNumber: mapActive(seq.activeAccountNumber),
+      lastUpdated: nowIso,
+    },
     detail: `Swapped Accounts ${slotA} and ${slotB}`,
     slotA,
     slotB,
@@ -184,24 +174,39 @@ export function moveMutation(
   const slot = resolveClaudeSlot(seq.accounts, identifier);
   const target = Number(targetSlot);
   if (slot === String(target)) {
-    return { doc: seq, detail: `Account ${slot} is already in slot ${String(target)}`, slot, target, swapped: false };
+    return {
+      doc: seq,
+      detail: `Account ${slot} is already in slot ${String(target)}`,
+      slot,
+      target,
+      swapped: false,
+    };
   }
   if (seq.accounts[String(target)] !== undefined) {
     const swapped = swapMutation(seq, slot, String(target), nowIso);
-    return { ...swapped, detail: `Swapped Accounts ${slot} and ${String(target)}`, slot, target, swapped: true };
+    return {
+      ...swapped,
+      detail: `Swapped Accounts ${slot} and ${String(target)}`,
+      slot,
+      target,
+      swapped: true,
+    };
   }
   const record = seq.accounts[slot];
   if (!record) throw new AccountNotFoundError(`Account-${slot} does not exist`);
   const { [slot]: _movedSlot, ...kept } = seq.accounts;
   void _movedSlot;
   const accounts = { ...kept, [String(target)]: record };
-  const sequence = [...seq.sequence.filter((n) => String(n) !== slot), target].sort(
-    (a, b) => a - b,
-  );
-  const mapActive = (n: number | null): number | null =>
-    n !== null && String(n) === slot ? target : n;
+  const sequence = [...seq.sequence.filter((n) => String(n) !== slot), target].sort((a, b) => a - b);
+  const mapActive = (n: number | null): number | null => (n !== null && String(n) === slot ? target : n);
   return {
-    doc: { ...seq, accounts, sequence, activeAccountNumber: mapActive(seq.activeAccountNumber), lastUpdated: nowIso },
+    doc: {
+      ...seq,
+      accounts,
+      sequence,
+      activeAccountNumber: mapActive(seq.activeAccountNumber),
+      lastUpdated: nowIso,
+    },
     detail: `Moved Account ${slot} to slot ${String(target)}`,
     slot,
     target,
@@ -240,7 +245,7 @@ export function removeLegacyRow<T extends { accounts: Record<string, { email?: s
   if (slot === null || accounts[slot] === undefined) {
     throw new AccountNotFoundError(`No account found with identifier: ${identifier}`);
   }
-  const email = accounts[slot]?.email ?? "";
+  const email = accounts[slot]?.email ?? '';
   const { [slot]: _legacySlot, ...next } = accounts;
   void _legacySlot;
   return { doc: { ...doc, accounts: next }, slot, email };

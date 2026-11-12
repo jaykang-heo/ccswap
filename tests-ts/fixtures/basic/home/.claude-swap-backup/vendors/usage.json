@@ -1,1 +1,32 @@
-{"entries":{"muse\u001fwork":{"attributedTo":"work","authoritative":true,"error":null,"hint":"","observations":[],"observedAt":1794340000,"plan":"Pro","reason":"","source":"muse usage --json","state":"available","windows":[{"key":"five-hour","label":"5-hour","limit":null,"note":"","remaining":null,"resetsAt":1893456000,"resetsOn":null,"scope":"account","unit":"percent","used":null,"usedPercent":12.5}]}},"schemaVersion":1}
+{
+  "entries": {
+    "muse\u001fwork": {
+      "attributedTo": "work",
+      "authoritative": true,
+      "error": null,
+      "hint": "",
+      "observations": [],
+      "observedAt": 1794340000,
+      "plan": "Pro",
+      "reason": "",
+      "source": "muse usage --json",
+      "state": "available",
+      "windows": [
+        {
+          "key": "five-hour",
+          "label": "5-hour",
+          "limit": null,
+          "note": "",
+          "remaining": null,
+          "resetsAt": 1893456000,
+          "resetsOn": null,
+          "scope": "account",
+          "unit": "percent",
+          "used": null,
+          "usedPercent": 12.5
+        }
+      ]
+    }
+  },
+  "schemaVersion": 1
+}

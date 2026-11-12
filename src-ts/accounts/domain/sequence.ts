@@ -6,15 +6,15 @@
  * - `<backup>/settings.json` (`claude_swap/settings.py`, camelCase)
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 const claudeAccountRecord = z
   .object({
-    email: z.string().default("unknown"),
-    uuid: z.string().default(""),
-    organizationUuid: z.string().default(""),
-    organizationName: z.string().default(""),
-    added: z.string().default(""),
+    email: z.string().default('unknown'),
+    uuid: z.string().default(''),
+    organizationUuid: z.string().default(''),
+    organizationName: z.string().default(''),
+    added: z.string().default(''),
     alias: z.string().optional(),
     disabled: z.boolean().default(false),
   })
@@ -25,7 +25,7 @@ export const claudeSequenceSchema = z
     accounts: z.record(z.string(), claudeAccountRecord).default({}),
     sequence: z.array(z.number()).default([]),
     activeAccountNumber: z.number().nullable().default(null),
-    lastUpdated: z.string().default(""),
+    lastUpdated: z.string().default(''),
   })
   .catchall(z.unknown());
 
@@ -48,7 +48,7 @@ export interface ClaudeSequence {
 
 const codexAccountRecord = z
   .object({
-    email: z.string().default("unknown"),
+    email: z.string().default('unknown'),
     alias: z.string().optional(),
     disabled: z.boolean().default(false),
   })
@@ -70,7 +70,7 @@ export interface CodexSequence {
 
 const agyAccountRecord = z
   .object({
-    email: z.string().default("unknown"),
+    email: z.string().default('unknown'),
     alias: z.string().optional(),
   })
   .catchall(z.unknown());

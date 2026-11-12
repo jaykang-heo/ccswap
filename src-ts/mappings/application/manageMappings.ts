@@ -3,27 +3,23 @@
  * `main.ts` (wave 1). Identity is `(email, orgUuid)` — never the slot number.
  */
 
-import { ReverseLog } from "../../platform/domain/atomicFile.js";
-import { backupRoot } from "../../platform/domain/paths.js";
-import { loadClaudeRoster } from "../../accounts/adapters/roster.js";
-import { failed, ok, type UseCaseResult } from "../../accounts/application/manageAccounts.js";
-import { normalizeMappingPath } from "../domain/mappingDoc.js";
-import { updateMappings } from "../adapters/mappingStore.js";
+import { ReverseLog } from '../../platform/domain/atomicFile.js';
+import { backupRoot } from '../../platform/domain/paths.js';
+import { loadClaudeRoster } from '../../accounts/adapters/roster.js';
+import { failed, ok, type UseCaseResult } from '../../accounts/application/manageAccounts.js';
+import { normalizeMappingPath } from '../domain/mappingDoc.js';
+import { updateMappings } from '../adapters/mappingStore.js';
 
 function nowStamp(): string {
-  return new Date().toISOString().replace(/\.\d+Z$/, "Z");
+  return new Date().toISOString().replace(/\.\d+Z$/, 'Z');
 }
 
-export function mapAccount(
-  root: string = backupRoot(),
-  identifier: string,
-  dir?: string,
-): UseCaseResult {
+export function mapAccount(root: string = backupRoot(), identifier: string, dir?: string): UseCaseResult {
   try {
     if (dir === undefined) {
       return {
         code: 2,
-        message: "map needs an account and a path",
+        message: 'map needs an account and a path',
         reverse: new ReverseLog(),
         handled: true,
       };

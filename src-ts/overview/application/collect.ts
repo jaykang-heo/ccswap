@@ -11,15 +11,15 @@ import {
   claudeAccountsPayload,
   claudeActiveSlot,
   codexAccountsPayload,
-} from "../../accounts/application/listAccounts.js";
-import { liveIdentity } from "../../accounts/adapters/liveIdentity.js";
-import { loadVendorsDoc, toolAccounts } from "../../vendors/adapters/vendorStore.js";
-import { vendorsPayload } from "../../vendors/application/listVendors.js";
-import { loadClaudeUsage, loadVendorUsage, vendorUsageFor } from "../../usage/application/readUsage.js";
-import { effectiveSettings } from "../../config/domain/settings.js";
-import { readJsonFile } from "../../platform/domain/jsonFile.js";
-import { backupRoot } from "../../platform/domain/paths.js";
-import path from "node:path";
+} from '../../accounts/application/listAccounts.js';
+import { liveIdentity } from '../../accounts/adapters/liveIdentity.js';
+import { loadVendorsDoc, toolAccounts } from '../../vendors/adapters/vendorStore.js';
+import { vendorsPayload } from '../../vendors/application/listVendors.js';
+import { loadClaudeUsage, loadVendorUsage, vendorUsageFor } from '../../usage/application/readUsage.js';
+import { effectiveSettings } from '../../config/domain/settings.js';
+import { readJsonFile } from '../../platform/domain/jsonFile.js';
+import { backupRoot } from '../../platform/domain/paths.js';
+import path from 'node:path';
 
 export interface OverviewTool {
   tool: string;
@@ -42,14 +42,14 @@ export interface Overview {
 
 /** Worst used-percent across a cached Claude usage row's windows. */
 function worstPct(lastGood: unknown): number | null {
-  if (typeof lastGood !== "object" || lastGood === null) return null;
-  const windows = (lastGood as Record<string, unknown>)["windows"];
+  if (typeof lastGood !== 'object' || lastGood === null) return null;
+  const windows = (lastGood as Record<string, unknown>)['windows'];
   if (!Array.isArray(windows)) return null;
   let worst: number | null = null;
   for (const w of windows) {
-    if (typeof w !== "object" || w === null) continue;
-    const pct = (w as Record<string, unknown>)["usedPercent"];
-    if (typeof pct === "number" && Number.isFinite(pct)) {
+    if (typeof w !== 'object' || w === null) continue;
+    const pct = (w as Record<string, unknown>)['usedPercent'];
+    if (typeof pct === 'number' && Number.isFinite(pct)) {
       worst = worst === null ? pct : Math.max(worst, pct);
     }
   }
@@ -70,28 +70,31 @@ export function collectOverview(root: string = backupRoot()): Overview {
   const tools: OverviewTool[] = [];
   const claudeStates: Record<string, number> = {};
   for (const a of claude.accounts) {
-    const state = a.disabled ? "disabled" : a.usageCached ? "cached" : "unknown";
+    const state = a.disabled ? 'disabled' : a.usageCached ? 'cached' : 'unknown';
     claudeStates[state] = (claudeStates[state] ?? 0) + 1;
   }
   tools.push({
-    tool: "claude",
+    tool: 'claude',
     accounts: claude.accounts.length,
     active: claudeActiveSlot(root),
     states: claudeStates,
   });
-  for (const [tool, payload] of [["codex", codex], ["agy", agy]] as const) {
+  for (const [tool, payload] of [
+    ['codex', codex],
+    ['agy', agy],
+  ] as const) {
     const states: Record<string, number> = {};
     for (const a of payload.accounts) {
-      const key = a.disabled ? "disabled" : "unknown";
+      const key = a.disabled ? 'disabled' : 'unknown';
       states[key] = (states[key] ?? 0) + 1;
     }
     tools.push({ tool, accounts: payload.accounts.length, active: payload.active, states });
   }
-  for (const tool of ["muse", "kiro"] as const) {
+  for (const tool of ['muse', 'kiro'] as const) {
     const states: Record<string, number> = {};
     for (const a of toolAccounts(doc, tool)) {
       const cached = vendorUsageFor(cache, tool, a.alias);
-      const key = cached?.state ?? "unknown";
+      const key = cached?.state ?? 'unknown';
       states[key] = (states[key] ?? 0) + 1;
     }
     tools.push({
@@ -102,7 +105,7 @@ export function collectOverview(root: string = backupRoot()): Overview {
     });
   }
 
-  const settingsRaw = readJsonFile(path.join(root, "settings.json"));
+  const settingsRaw = readJsonFile(path.join(root, 'settings.json'));
   void usageBySlot;
   void worstPct;
   return {
@@ -146,9 +149,10 @@ export function collectStatusline(root: string = backupRoot()): Statusline {
   const activeEmail = live?.email ?? activeRec?.email ?? null;
   return {
     schemaVersion: 1,
-    active: activeEmail !== null
-      ? { slot: active ?? "", email: activeEmail, alias: activeRec?.alias ?? null }
-      : null,
+    active:
+      activeEmail !== null
+        ? { slot: active ?? '', email: activeEmail, alias: activeRec?.alias ?? null }
+        : null,
     managed: active !== null,
     bestOther: best !== null ? { slot: best.slot, email: best.email } : null,
   };

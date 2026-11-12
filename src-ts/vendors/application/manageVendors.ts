@@ -8,27 +8,27 @@
  * dispatcher falls through to Python.
  */
 
-import { execFile, spawn, spawnSync } from "node:child_process";
-import { once } from "node:events";
-import os from "node:os";
-import { ReverseLog } from "../../platform/domain/atomicFile.js";
-import { CcswapError, ConfigError, ValidationError } from "../../platform/domain/errors.js";
-import { backupRoot } from "../../platform/domain/paths.js";
-import { parseVendorAccounts } from "../domain/vendorsDoc.js";
+import { execFile, spawn } from 'node:child_process';
+import { once } from 'node:events';
+import os from 'node:os';
+import { ReverseLog } from '../../platform/domain/atomicFile.js';
+import { ConfigError, ValidationError } from '../../platform/domain/errors.js';
+import { backupRoot } from '../../platform/domain/paths.js';
+import { parseVendorAccounts } from '../domain/vendorsDoc.js';
 import {
   findVendorIndex,
   vendorAddMutation,
   vendorRemoveMutation,
   vendorSetActiveMutation,
-} from "../domain/vendorMutations.js";
+} from '../domain/vendorMutations.js';
 import {
   dropSecretFile,
   loadVendorsDocOrThrow,
   readSecretFile,
   updateVendorsDoc,
   writeSecretFile,
-} from "../adapters/vendorRosterStore.js";
-import { failed, ok, unhandled, type UseCaseResult } from "../../accounts/application/manageAccounts.js";
+} from '../adapters/vendorRosterStore.js';
+import { failed, ok, unhandled, type UseCaseResult } from '../../accounts/application/manageAccounts.js';
 
 export interface VendorExecResult {
   ok: boolean;
@@ -48,7 +48,7 @@ export const realVendorExec: VendorExec = (binary, args, input, timeoutMs) =>
     const child = execFile(
       binary,
       args,
-      { timeout: timeoutMs ?? 20_000, encoding: "utf-8", maxBuffer: 4 * 1024 * 1024 },
+      { timeout: timeoutMs ?? 20_000, encoding: 'utf-8', maxBuffer: 4 * 1024 * 1024 },
       (err, stdout, stderr) => {
         if (err) {
           resolve({ ok: false, stdout, stderr: `${err.message}\n${stderr}` });
@@ -63,23 +63,23 @@ export const realVendorExec: VendorExec = (binary, args, input, timeoutMs) =>
     }
   });
 
-export const KNOWN_VENDOR_TOOLS = ["muse", "kiro", "grok"] as const;
+export const KNOWN_VENDOR_TOOLS = ['muse', 'kiro', 'grok'] as const;
 
 function requireKnownTool(tool: string): void {
   if (!(KNOWN_VENDOR_TOOLS as readonly string[]).includes(tool)) {
     throw new ConfigError(
-      `Unknown vendor '${tool}'. Known: ${(KNOWN_VENDOR_TOOLS as readonly string[]).join(", ")}`,
+      `Unknown vendor '${tool}'. Known: ${(KNOWN_VENDOR_TOOLS as readonly string[]).join(', ')}`,
     );
   }
 }
 
 function grokGuard(tool: string): UseCaseResult | null {
-  if (tool !== "grok") return null;
+  if (tool !== 'grok') return null;
   // Registered as a known tool (never invented as unknown), but the product
   // has no supported mechanism yet — every mutating verb is exit 3.
   return {
     code: 3,
-    message: "the product cannot do it (grok has no supported account mechanism yet)",
+    message: 'the product cannot do it (grok has no supported account mechanism yet)',
     reverse: new ReverseLog(),
     handled: true,
   };
@@ -107,20 +107,25 @@ export function vendorAdd(
     const grok = grokGuard(tool);
     if (grok) return grok;
     requireKnownTool(tool);
-    if (tool === "muse" && opts.browser && !opts.fromFile) {
-      return unhandled("muse add --browser reads the live browser login via the vendor product");
+    if (tool === 'muse' && opts.browser && !opts.fromFile) {
+      return unhandled('muse add --browser reads the live browser login via the vendor product');
     }
     const secret = opts.secretStdin ?? readSecretInput?.() ?? null;
     const kind = opts.kind ?? defaultKind(tool, opts);
     const reverse = new ReverseLog();
     const detail = updateVendorsDoc(root, reverse, (doc) => {
-      const m = vendorAddMutation(doc, tool, {
-        alias,
-        kind,
-        provider: opts.provider ?? null,
-        identity: {},
-        loginHint: opts.fromFile ?? "",
-      }, kind === "api-key" ? secret : null);
+      const m = vendorAddMutation(
+        doc,
+        tool,
+        {
+          alias,
+          kind,
+          provider: opts.provider ?? null,
+          identity: {},
+          loginHint: opts.fromFile ?? '',
+        },
+        kind === 'api-key' ? secret : null,
+      );
       if (m.secretWrite) writeSecretFile(root, reverse, m.secretWrite.alias, m.secretWrite.secret);
       return { doc: m.doc, result: m.detail };
     });
@@ -131,11 +136,11 @@ export function vendorAdd(
 }
 
 function defaultKind(tool: string, opts: VendorAddOptions): string {
-  if (tool === "muse") {
-    if (opts.fromFile) return "browser";
-    return opts.secretStdin !== undefined && opts.secretStdin !== null ? "api-key" : "api-key";
+  if (tool === 'muse') {
+    if (opts.fromFile) return 'browser';
+    return opts.secretStdin !== undefined && opts.secretStdin !== null ? 'api-key' : 'api-key';
   }
-  return opts.social ?? opts.license ? "login" : "api-key";
+  return (opts.social ?? opts.license) ? 'login' : 'api-key';
 }
 
 export function vendorRemove(
@@ -151,7 +156,7 @@ export function vendorRemove(
     const reverse = new ReverseLog();
     const detail = updateVendorsDoc(root, reverse, (doc) => {
       const entry = doc.tools[tool] as { accounts?: unknown[] } | undefined;
-      const parsed = parseVendorAccounts(Array.isArray(entry?.accounts) ? (entry.accounts) : []);
+      const parsed = parseVendorAccounts(Array.isArray(entry?.accounts) ? entry.accounts : []);
       const m = vendorRemoveMutation(doc, tool, identifier, provider, parsed);
       if (m.secretDrop) dropSecretFile(root, reverse, m.secretDrop);
       return { doc: m.doc, result: m.detail };
@@ -186,15 +191,15 @@ export async function vendorSwitch(
     const exec = opts.exec ?? realVendorExec;
     const doc = loadVendorsDocOrThrow(root);
     const entry = doc.tools[tool] as { accounts?: unknown[]; active?: string | null } | undefined;
-    const parsed = parseVendorAccounts(Array.isArray(entry?.accounts) ? (entry.accounts) : []);
+    const parsed = parseVendorAccounts(Array.isArray(entry?.accounts) ? entry.accounts : []);
     const idx = findVendorIndex(parsed, identifier, opts.provider);
     const record = parsed[idx];
     if (!record) throw new ConfigError(`Unknown account '${identifier}'`);
-    if (tool === "kiro") {
+    if (tool === 'kiro') {
       return unhandled(`${tool} switch drives the vendor's interactive login flow`);
     }
-    if (record.kind === "browser") {
-      return unhandled("muse browser switch restores a stored login via the vendor product");
+    if (record.kind === 'browser') {
+      return unhandled('muse browser switch restores a stored login via the vendor product');
     }
     const secret = readSecretFile(root, record.secretRef);
     if (!secret) throw new ConfigError(`Account '${record.alias}' has no stored API key`);
@@ -203,14 +208,18 @@ export async function vendorSwitch(
         `Switching replaces the credential stored by Muse. Re-run with --yes to confirm, or use \`ccswap muse run ${record.alias}\` to launch without changing anything`,
       );
     }
-    const res = await exec("muse", ["auth", "set", "--provider", "meta", "--api-key-stdin"], `${secret}\n`);
+    const res = await exec('muse', ['auth', 'set', '--provider', 'meta', '--api-key-stdin'], `${secret}\n`);
     if (!res.ok) throw new ConfigError(`\`muse auth set\` failed: ${res.stderr.slice(0, 300)}`);
     const reverse = new ReverseLog();
     const detail = updateVendorsDoc(root, reverse, (d) => {
       const m = vendorSetActiveMutation(d, tool, record.alias);
       return { doc: m.doc, result: m.detail };
     });
-    return ok(`${detail}. Running Muse sessions keep their old credential until restarted`, undefined, reverse);
+    return ok(
+      `${detail}. Running Muse sessions keep their old credential until restarted`,
+      undefined,
+      reverse,
+    );
   } catch (err) {
     return failed(err);
   }
@@ -230,51 +239,62 @@ export async function vendorRun(
     requireKnownTool(tool);
     const doc = loadVendorsDocOrThrow(root);
     const entry = doc.tools[tool] as { accounts?: unknown[] } | undefined;
-    const parsed = parseVendorAccounts(Array.isArray(entry?.accounts) ? (entry.accounts) : []);
-    if (tool !== "muse" || identifier === "@key") return unhandled();
+    const parsed = parseVendorAccounts(Array.isArray(entry?.accounts) ? entry.accounts : []);
+    if (tool !== 'muse' || identifier === '@key')
+      return unhandled('only stored Muse API-key accounts run in TypeScript');
     const record = parsed[findVendorIndex(parsed, identifier, provider)];
-    if (!record || record.kind !== "api-key") return unhandled();
+    if (!record || record.kind !== 'api-key') return unhandled('account is not a stored Muse API key');
     const secret = readSecretFile(root, record.secretRef);
     if (!secret) throw new ConfigError(`Account '${record.alias}' has no stored API key`);
-    const binary = process.env["MUSE_CHILD"] ?? "muse";
+    const binary = process.env['MUSE_CHILD'] ?? 'muse';
     const childArgs = args;
     const env = { ...process.env };
-    env["META_API_KEY"] = secret;
-    env["TBH_CREDENTIAL_BACKEND"] = "file";
-    delete env["KIRO_API_KEY"];
+    env['META_API_KEY'] = secret;
+    env['TBH_CREDENTIAL_BACKEND'] = 'file';
+    delete env['KIRO_API_KEY'];
     return await runInteractive(binary, childArgs, env);
   } catch {
-    return unhandled();
+    return unhandled('muse run failed before launch; the Python path reports the error');
   }
 }
 
-async function runInteractive(binary: string, args: string[], env: NodeJS.ProcessEnv): Promise<UseCaseResult> {
+async function runInteractive(
+  binary: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+): Promise<UseCaseResult> {
   try {
-    const child = spawn(binary, args, { stdio: "inherit", env });
-    const [code, signal] = await once(child, "close") as [number | null, NodeJS.Signals | null];
-    if (code !== null) return { code, message: "", reverse: new ReverseLog(), handled: true };
-    const signalNumber = signal ? os.constants.signals[signal] ?? 0 : 0;
-    return { code: signalNumber ? 128 + signalNumber : 1, message: "", reverse: new ReverseLog(), handled: true };
+    const child = spawn(binary, args, { stdio: 'inherit', env });
+    const [code, signal] = (await once(child, 'close')) as [number | null, NodeJS.Signals | null];
+    if (code !== null) return { code, message: '', reverse: new ReverseLog(), handled: true };
+    const signalNumber = signal ? os.constants.signals[signal] : 0;
+    return {
+      code: signalNumber ? 128 + signalNumber : 1,
+      message: '',
+      reverse: new ReverseLog(),
+      handled: true,
+    };
   } catch {
-    return unhandled();
+    return unhandled('muse binary could not be started');
   }
 }
 
-export function vendorStatus(
-  root: string = backupRoot(),
-  tool: string,
-): UseCaseResult {
+export function vendorStatus(root: string = backupRoot(), tool: string): UseCaseResult {
   try {
     requireKnownTool(tool);
     const doc = loadVendorsDocOrThrow(root);
     const entry = doc.tools[tool] as { accounts?: unknown[]; active?: string | null } | undefined;
-    const parsed = parseVendorAccounts(Array.isArray(entry?.accounts) ? (entry.accounts) : []);
-    return ok(`${tool}: ${String(parsed.length)} account(s)`, {
-      schemaVersion: 1,
-      tool,
-      active: entry?.active ?? null,
-      accounts: parsed.length,
-    }, new ReverseLog());
+    const parsed = parseVendorAccounts(Array.isArray(entry?.accounts) ? entry.accounts : []);
+    return ok(
+      `${tool}: ${String(parsed.length)} account(s)`,
+      {
+        schemaVersion: 1,
+        tool,
+        active: entry?.active ?? null,
+        accounts: parsed.length,
+      },
+      new ReverseLog(),
+    );
   } catch (err) {
     return failed(err);
   }

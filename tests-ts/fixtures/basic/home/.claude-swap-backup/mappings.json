@@ -1,1 +1,9 @@
-{"mappings": {"/work/client-app": {"email": "alice@example.com", "organizationUuid": "org-1", "added": "2026-01-04T00:00:00Z"}}}
+{
+  "mappings": {
+    "/work/client-app": {
+      "email": "alice@example.com",
+      "organizationUuid": "org-1",
+      "added": "2026-01-04T00:00:00Z"
+    }
+  }
+}

@@ -11,26 +11,24 @@
  * Keychain-only backups (macOS, no `.enc` file) report `needsFallback`.
  */
 
-import fs from "node:fs";
-import path from "node:path";
-import { z } from "zod";
-import { atomicWriteFile, type ReverseLog } from "../../platform/domain/atomicFile.js";
-import { readJsonFile, readTextFile } from "../../platform/domain/jsonFile.js";
-import { backupRoot, claudeConfigHome } from "../../platform/domain/paths.js";
-import { liveIdentity } from "./liveIdentity.js";
+import fs from 'node:fs';
+import path from 'node:path';
+import { z } from 'zod';
+import { atomicWriteFile, type ReverseLog } from '../../platform/domain/atomicFile.js';
+import { readJsonFile, readTextFile } from '../../platform/domain/jsonFile.js';
+import { backupRoot, claudeConfigHome } from '../../platform/domain/paths.js';
+import { liveIdentity } from './liveIdentity.js';
 
 const oauthInner = z
   .object({
-    refreshToken: z.string().default(""),
-    accessToken: z.string().default(""),
+    refreshToken: z.string().default(''),
+    accessToken: z.string().default(''),
     expiresAt: z.number().default(0),
     scopes: z.array(z.string()).default([]),
   })
   .catchall(z.unknown());
 
-const credentialSchema = z
-  .object({ claudeAiOauth: oauthInner.optional() })
-  .catchall(z.unknown());
+const credentialSchema = z.object({ claudeAiOauth: oauthInner.optional() }).catchall(z.unknown());
 
 export interface LiveCapture {
   credentials: string;
@@ -43,25 +41,21 @@ export interface LiveCapture {
 export function looksLikeApiKey(text: string | null): boolean {
   if (!text) return false;
   const t = text.trim();
-  if (t.startsWith("{")) return false;
-  if (!t.startsWith("sk-ant-")) return false;
-  return !t.startsWith("sk-ant-oat");
+  if (t.startsWith('{')) return false;
+  if (!t.startsWith('sk-ant-')) return false;
+  return !t.startsWith('sk-ant-oat');
 }
 
 export function liveCredentialsPath(configHome: string = claudeConfigHome()): string {
-  return path.join(configHome, ".credentials.json");
+  return path.join(configHome, '.credentials.json');
 }
 
-export function backupCredentialPath(
-  root: string,
-  slot: string,
-  email: string,
-): string {
-  return path.join(root, "credentials", `.creds-${slot}-${email}.enc`);
+export function backupCredentialPath(root: string, slot: string, email: string): string {
+  return path.join(root, 'credentials', `.creds-${slot}-${email}.enc`);
 }
 
 export function backupConfigPath(root: string, slot: string, email: string): string {
-  return path.join(root, "configs", `.claude-config-${slot}-${email}.json`);
+  return path.join(root, 'configs', `.claude-config-${slot}-${email}.json`);
 }
 
 /** Decode a `.enc` backup blob; null when absent/unreadable. */
@@ -69,10 +63,10 @@ export function readBackupCredentials(filePath: string): string | null {
   const text = readTextFile(filePath);
   if (text === null) return null;
   const t = text.trim();
-  if (t === "") return null;
-  if (t.startsWith("{")) return t; // legacy plaintext backup
+  if (t === '') return null;
+  if (t.startsWith('{')) return t; // legacy plaintext backup
   try {
-    return Buffer.from(t, "base64").toString("utf-8");
+    return Buffer.from(t, 'base64').toString('utf-8');
   } catch {
     return null;
   }
@@ -80,7 +74,7 @@ export function readBackupCredentials(filePath: string): string | null {
 
 export function encodeBackupCredentials(credentials: string): string {
   // Bare base64 text, no trailing newline (Python `_atomic_b64_write` parity).
-  return Buffer.from(credentials, "utf-8").toString("base64");
+  return Buffer.from(credentials, 'utf-8').toString('base64');
 }
 
 export interface SlotMaterial {
@@ -96,14 +90,14 @@ export interface SlotMaterial {
  */
 export function readSlotMaterial(root: string, slot: string, email: string): SlotMaterial {
   return {
-    creds: readBackupCredentials(backupCredentialPath(root, slot, email)) ?? "",
-    config: readTextFile(backupConfigPath(root, slot, email)) ?? "",
+    creds: readBackupCredentials(backupCredentialPath(root, slot, email)) ?? '',
+    config: readTextFile(backupConfigPath(root, slot, email)) ?? '',
   };
 }
 
 function writeMaterialFile(reverse: ReverseLog, file: string, text: string, encode: boolean): void {
   reverse.record(file);
-  if (text === "") {
+  if (text === '') {
     // Required-clear: the new owner must never adopt stale leaked material.
     try {
       fs.unlinkSync(file);
@@ -182,30 +176,27 @@ export function readLiveCapture(
   configHome: string = claudeConfigHome(),
 ): CaptureResult {
   const credText = readTextFile(liveCredentialsPath(configHome));
-  if (credText === null || credText.trim() === "") {
-    return { capture: null, needsFallback: false, reason: "no-live-login" };
+  if (credText === null || credText.trim() === '') {
+    return { capture: null, needsFallback: false, reason: 'no-live-login' };
   }
   if (looksLikeApiKey(credText)) {
-    return { capture: null, needsFallback: false, reason: "live-login-is-api-key" };
+    return { capture: null, needsFallback: false, reason: 'live-login-is-api-key' };
   }
   let parsed: z.output<typeof credentialSchema>;
   try {
     parsed = credentialSchema.parse(JSON.parse(credText));
   } catch {
-    return { capture: null, needsFallback: false, reason: "live-credentials-unreadable" };
+    return { capture: null, needsFallback: false, reason: 'live-credentials-unreadable' };
   }
   if (!parsed.claudeAiOauth) {
-    return { capture: null, needsFallback: false, reason: "live-credentials-unreadable" };
+    return { capture: null, needsFallback: false, reason: 'live-credentials-unreadable' };
   }
   const identity = liveIdentity();
   if (identity === null) {
-    return { capture: null, needsFallback: false, reason: "no-live-login" };
+    return { capture: null, needsFallback: false, reason: 'no-live-login' };
   }
   const globalConfig = ((): string | null => {
-    const candidates = [
-      path.join(configHome, ".config.json"),
-      liveGlobalConfigPath(),
-    ];
+    const candidates = [path.join(configHome, '.config.json'), liveGlobalConfigPath()];
     for (const c of candidates) {
       const t = readTextFile(c);
       if (t !== null) return t;
@@ -213,14 +204,14 @@ export function readLiveCapture(
     return null;
   })();
   if (globalConfig === null) {
-    return { capture: null, needsFallback: false, reason: "live-config-missing" };
+    return { capture: null, needsFallback: false, reason: 'live-config-missing' };
   }
   return {
     capture: {
       credentials: credText,
       email: identity.email,
       organizationUuid: identity.organizationUuid,
-      accountUuid: readAccountUuid() ?? "",
+      accountUuid: readAccountUuid() ?? '',
       configText: globalConfig,
     },
     needsFallback: false,
@@ -229,22 +220,22 @@ export function readLiveCapture(
 }
 
 function liveGlobalConfigPath(): string {
-  const legacy = path.join(claudeConfigHome(), ".config.json");
+  const legacy = path.join(claudeConfigHome(), '.config.json');
   try {
     const st = fs.statSync(legacy);
     if (st.isFile()) return legacy;
   } catch {
     // Fall through to ~/.claude.json.
   }
-  const home = process.env["HOME"] ?? "";
-  return path.join(home, ".claude.json");
+  const home = process.env['HOME'] ?? '';
+  return path.join(home, '.claude.json');
 }
 
 function readAccountUuid(): string | null {
   const raw = readJsonFile(liveGlobalConfigPath());
-  if (typeof raw !== "object" || raw === null) return null;
-  const oauth = (raw as Record<string, unknown>)["oauthAccount"];
-  if (typeof oauth !== "object" || oauth === null) return null;
-  const uuid = (oauth as Record<string, unknown>)["accountUuid"];
-  return typeof uuid === "string" ? uuid : null;
+  if (typeof raw !== 'object' || raw === null) return null;
+  const oauth = (raw as Record<string, unknown>)['oauthAccount'];
+  if (typeof oauth !== 'object' || oauth === null) return null;
+  const uuid = (oauth as Record<string, unknown>)['accountUuid'];
+  return typeof uuid === 'string' ? uuid : null;
 }

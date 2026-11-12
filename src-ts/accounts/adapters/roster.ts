@@ -1,8 +1,8 @@
 /** Roster adapters: read-only loads of the Claude/Codex/Agy rosters. */
 
-import path from "node:path";
-import { readJsonFile } from "../../platform/domain/jsonFile.js";
-import { backupRoot } from "../../platform/domain/paths.js";
+import path from 'node:path';
+import { readJsonFile } from '../../platform/domain/jsonFile.js';
+import { backupRoot } from '../../platform/domain/paths.js';
 import {
   type AgyAccounts,
   agyAccountsSchema,
@@ -11,7 +11,7 @@ import {
   type CodexSequence,
   codexSequenceSchema,
   type NormalizedAccount,
-} from "../domain/sequence.js";
+} from '../domain/sequence.js';
 
 function parseOrEmpty<T>(parse: (v: unknown) => T, raw: unknown, fallback: T): T {
   if (raw === null || raw === undefined) return fallback;
@@ -28,7 +28,7 @@ const EMPTY_CLAUDE: ClaudeSequence = {
   accounts: {},
   sequence: [],
   activeAccountNumber: null,
-  lastUpdated: "",
+  lastUpdated: '',
 };
 
 const EMPTY_CODEX: CodexSequence = { accounts: {}, sequence: [], activeAccountNumber: null };
@@ -41,25 +41,33 @@ export interface RosterLoad<S = ClaudeSequence> {
 }
 
 export function loadClaudeRoster(root: string = backupRoot()): RosterLoad {
-  const raw = readJsonFile(path.join(root, "sequence.json"));
+  const raw = readJsonFile(path.join(root, 'sequence.json'));
   if (raw === null) return { sequence: EMPTY_CLAUDE, unreadable: true };
-  return { sequence: parseOrEmpty((v) => claudeSequenceSchema.parse(v) as ClaudeSequence, raw, EMPTY_CLAUDE), unreadable: false };
+  return {
+    sequence: parseOrEmpty((v) => claudeSequenceSchema.parse(v) as ClaudeSequence, raw, EMPTY_CLAUDE),
+    unreadable: false,
+  };
 }
 
 export function loadCodexRoster(root: string = backupRoot()): RosterLoad<CodexSequence> {
-  const raw = readJsonFile(path.join(root, "codex", "sequence.json"));
-  if (raw === null)
-    return { sequence: EMPTY_CODEX, unreadable: true };
-  return { sequence: parseOrEmpty((v) => codexSequenceSchema.parse(v) as CodexSequence, raw, EMPTY_CODEX), unreadable: false };
+  const raw = readJsonFile(path.join(root, 'codex', 'sequence.json'));
+  if (raw === null) return { sequence: EMPTY_CODEX, unreadable: true };
+  return {
+    sequence: parseOrEmpty((v) => codexSequenceSchema.parse(v) as CodexSequence, raw, EMPTY_CODEX),
+    unreadable: false,
+  };
 }
 
 export function loadAgyRoster(root: string = backupRoot()): {
   accounts: AgyAccounts;
   unreadable: boolean;
 } {
-  const raw = readJsonFile(path.join(root, "agy", "accounts.json"));
+  const raw = readJsonFile(path.join(root, 'agy', 'accounts.json'));
   if (raw === null) return { accounts: EMPTY_AGY, unreadable: true };
-  return { accounts: parseOrEmpty((v) => agyAccountsSchema.parse(v) as AgyAccounts, raw, EMPTY_AGY), unreadable: false };
+  return {
+    accounts: parseOrEmpty((v) => agyAccountsSchema.parse(v) as AgyAccounts, raw, EMPTY_AGY),
+    unreadable: false,
+  };
 }
 
 export function normalizeClaude(seq: ClaudeSequence, activeSlot: string | null): NormalizedAccount[] {
