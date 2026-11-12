@@ -15,7 +15,7 @@ from claude_swap.vendors.service import VendorService
 from claude_swap.vendors.store import VendorStore
 from tests.vendor_helpers import FakeRunner, ok
 
-MUSE, KIRO, OC = "/b/muse", "/b/kiro-cli", "/b/opencode"
+MUSE, KIRO = "/b/muse", "/b/kiro-cli"
 KEY = "mk_live_0123456789abcdef"
 IDC = {
     "accountType": "IamIdentityCenter",
@@ -33,14 +33,10 @@ def _clean_env(monkeypatch):
 
 @pytest.fixture
 def runner():
-    r = FakeRunner({"muse": MUSE, "kiro-cli": KIRO, "opencode": OC})
+    r = FakeRunner({"muse": MUSE, "kiro-cli": KIRO})
     r.on(MUSE, "--version", result=ok("Muse Code 1.4.14\n"))
     r.on(KIRO, "--version", result=ok("kiro-cli 3.1.0\n"))
-    r.on(OC, "--version", result=ok("1.18.35\n"))
     r.on(KIRO, "whoami", result=ok(json.dumps(IDC) + "\n\nProfile:\nX\n"))
-    r.on(OC, "auth", "--help", result=ok("opencode auth list\n"))
-    r.on(OC, "auth", "list", "--help", result=ok("none"))
-    r.on(OC, "auth", "login", "--help", result=ok("none"))
     return r
 
 
@@ -104,7 +100,7 @@ def test_vendors_json_contract(service, capsys):
     assert vendors_command(["--json"], service) == 0
     doc = json.loads(capsys.readouterr().out)
     assert doc["schemaVersion"] == 1
-    assert [v["tool"] for v in doc["vendors"]] == ["muse", "opencode", "kiro"]
+    assert [v["tool"] for v in doc["vendors"]] == ["muse", "kiro"]
     for v in doc["vendors"]:
         assert {"installed", "version", "capabilities", "accounts", "error"} <= v.keys()
 
@@ -226,24 +222,6 @@ def test_usage_cache_expires(runner, tmp_path):
     assert len(calls) == 2
 
 
-def test_unsupported_exit_code_and_json_envelope(service, capsys, runner):
-    code, out, _ = run("opencode", ["switch", "anthropic", "work", "--json"], service, capsys)
-    assert code == 3
-    err = json.loads(out)["error"]
-    assert err["type"] == "UnsupportedCapability" and "auth switch" in err["message"]
-
-
-def test_opencode_list_human_and_provider_awareness(service, capsys, runner, tmp_path, monkeypatch):
-    data = tmp_path / "d" / "opencode"
-    data.mkdir(parents=True)
-    (data / "auth.json").write_text(
-        json.dumps({"anthropic": {"type": "oauth", "refresh": "SECRET"}})
-    )
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "d"))
-    code, out, _ = run("opencode", ["list"], service, capsys)
-    assert code == 0 and "anthropic/default" in out and "SECRET" not in out
-
-
 def test_kiro_status_and_list(service, capsys):
     code, out, _ = run("kiro", ["add", "work"], service, capsys)
     assert code == 0
@@ -284,7 +262,7 @@ def test_ambiguous_and_numeric_selectors(service, capsys, monkeypatch, tmp_path)
 
 
 def test_auto_switch_is_offered_for_muse_and_disabled_with_reason_elsewhere(service):
-    for tool in ("opencode", "kiro"):
+    for tool in ("kiro",):
         state = service.auto_switch_state(tool)
         assert state["available"] is False and state["reason"]
     muse = service.auto_switch_state("muse")
@@ -314,18 +292,6 @@ def test_numeric_alias_is_reachable_and_unicode_digits_do_not_crash(service):
     assert service.resolve("muse", "1").alias == "first"
     with pytest.raises(AccountNotRegistered):
         service.resolve("muse", "²")
-
-
-def test_opencode_vendor_identifiers_are_never_list_positions(service):
-    from claude_swap.vendors.core import AccountNotRegistered
-
-    service.store.add(
-        AccountRecord(
-            "opencode", "mine", "provider-account", "anthropic", {"account": "work", "id": "c1"}
-        )
-    )
-    with pytest.raises(AccountNotRegistered):
-        service.resolve("opencode", "1", "anthropic", allow_index=False)
 
 
 def test_duplicate_identity_cannot_be_registered_twice(service, capsys):
@@ -444,6 +410,6 @@ def test_usage_check_fails_a_tool_that_timed_out():
     from claude_swap.vendors.overview import ToolSummary
 
     # A timed-out collection reads as not installed; the gate must not pass it.
-    assert usage_problems([ToolSummary("opencode", "OpenCode", error="timed out")], {}) == [
-        "opencode: timed out"
+    assert usage_problems([ToolSummary("kiro", "Kiro CLI", error="timed out")], {}) == [
+        "kiro: timed out"
     ]

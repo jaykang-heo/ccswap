@@ -153,7 +153,7 @@ describe("codex/agy roster parity", () => {
 });
 
 describe("vendor roster parity", () => {
-  for (const tool of ["muse", "opencode", "kiro"]) {
+  for (const tool of ["muse", "kiro"]) {
     it(`${tool} list matches ${tool}-list.json on account fields`, async () => {
       const py = golden(`${tool}-list.json`) as Loose;
       const { code, stdout } = await runTs([tool, "list", "--json"]);
@@ -218,7 +218,7 @@ describe("usage parity", () => {
 
   it("usage serves the stored vendor cache verbatim (Python cache oracle)", async () => {
     const oracle = golden("vendor-cache.json") as Record<string, Loose | null>;
-    const { code, stdout } = await runTs(["usage", "muse", "opencode", "--json"]);
+    const { code, stdout } = await runTs(["usage", "muse", "--json"]);
     expect(code).toBe(0);
     const ts = JSON.parse(stdout) as Loose;
     for (const t of arr(ts["tools"])) {

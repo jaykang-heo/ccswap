@@ -98,10 +98,10 @@ class DashboardScreen(Screen):
         # Power shortcuts; the menu is the discoverable path.
         Binding("g", "app.open_auto", mark("Auto view"), show=False),
         Binding("v", "app.open_tool('overview')", mark("All tools"), show=False),
-        # The peer row: 1 Claude Code, 2 Codex, 3 Muse, 4 Kiro, 5 OpenCode, 6 Antigravity.
+        # The peer row: 1 Claude Code, 2 Codex, 3 Muse, 4 Kiro, 5 Antigravity.
         *(
             Binding(str(i), f"app.open_tool('{tool}')", show=False)
-            for i, tool in enumerate(("claude", "codex", "muse", "kiro", "opencode", "agy"), 1)
+            for i, tool in enumerate(("claude", "codex", "muse", "kiro", "agy"), 1)
         ),
         Binding("0", "app.open_tool('overview')", show=False),
         Binding("f", "app.refresh_full", mark("Refresh usage"), show=False),
@@ -157,7 +157,6 @@ class DashboardScreen(Screen):
             (self.app.gettext("Settings…"), "settings-menu"),
             (self.app.gettext("Muse Code…"), "tool:muse"),
             (self.app.gettext("Kiro CLI…"), "tool:kiro"),
-            (self.app.gettext("OpenCode…"), "tool:opencode"),
             (self.app.gettext("All tools overview…"), "tool:overview"),
             (self.app.gettext("Quit"), "quit"),
         ]

@@ -46,8 +46,8 @@ export function claudeGlobalConfigPath(): string {
   return globalCfg;
 }
 
-export const VENDOR_TOOLS = ["muse", "opencode", "kiro"] as const;
+export const VENDOR_TOOLS = ["muse", "kiro"] as const;
 export type VendorTool = (typeof VENDOR_TOOLS)[number];
 
-export const ALL_TOOLS = ["claude", "codex", "muse", "kiro", "opencode", "agy"] as const;
+export const ALL_TOOLS = ["claude", "codex", "muse", "kiro", "agy"] as const;
 export type ToolName = (typeof ALL_TOOLS)[number];

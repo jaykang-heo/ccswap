@@ -6,14 +6,13 @@ import { run } from "./ccswap.ts";
 
 export const USAGE_SCHEMA_VERSION = 1;
 
-export type ToolId = "claude" | "codex" | "muse" | "kiro" | "opencode" | "agy";
-export const TOOL_IDS: ToolId[] = ["claude", "codex", "muse", "kiro", "opencode", "agy"];
+export type ToolId = "claude" | "codex" | "muse" | "kiro" | "agy";
+export const TOOL_IDS: ToolId[] = ["claude", "codex", "muse", "kiro", "agy"];
 export const TOOL_TITLES: Record<ToolId, string> = {
   claude: "Claude Code",
   codex: "Codex",
   muse: "Muse Code",
   kiro: "Kiro CLI",
-  opencode: "OpenCode",
   agy: "Antigravity",
 };
 
@@ -97,17 +96,12 @@ export function listUsage(bin: string, tools: ToolId[] = [], refresh = false): P
 }
 
 // Switching from Raycast is offered only where it is non-interactive and needs no extra
-// confirmation: Claude Code and Codex slots (ccswap's own switch), and OpenCode provider
-// accounts (native `auth switch`). Muse replaces a stored credential and Kiro needs a terminal
-// login, so those return a command to run instead.
+// confirmation: Claude Code and Codex slots (ccswap's own switch). Muse replaces a stored
+// credential and Kiro needs a terminal login, so those return a command to run instead.
 export function switchArgs(tool: string, account: ToolAccount): string[] | null {
   if (account.active === true) return null;
   if ((tool === "claude" || tool === "codex") && account.identity.number) {
     return [...(tool === "codex" ? ["codex"] : []), "switch", account.identity.number, "--json"];
-  }
-  if (tool === "opencode" && account.provider && account.active === false) {
-    const selector = account.identity.id ?? account.identity.account;
-    return selector ? ["opencode", "switch", account.provider, selector, "--json"] : null;
   }
   return null;
 }

@@ -8,7 +8,7 @@
  *
  * Live probes are a `ProbeRunner` interface. This wave ships local
  * single-command probes (single vendor binary, JSON stdout, zod-validated):
- * muse (`muse usage --json`) and opencode (`opencode stats`). Tools whose
+ * muse (`muse usage --json`). Tools whose
  * mechanism is interactive or multi-step (claude/codex OAuth, kiro V2
  * harness, agy quota) report `needsProbeFallback`, and the dispatcher falls
  * the whole command through to Python so output stays identical.
@@ -94,28 +94,6 @@ export async function localProbe(tool: string, aliases: string[]): Promise<Omit<
       return { results, fallback: false, reason: "" };
     } catch (err) {
       return { results: null, fallback: false, reason: `muse probe failed: ${(err as Error).message}` };
-    }
-  }
-  if (tool === "opencode") {
-    try {
-      const stdout = await runBinary("opencode", ["stats"], 30_000);
-      void stdout;
-      const results: VendorUsageResult[] = aliases.map((alias) => ({
-        state: "available",
-        reason: "local token/USD statistics; provider quotas not reported",
-        hint: "",
-        windows: [],
-        observations: [],
-        plan: null,
-        source: "opencode stats (local message records)",
-        authoritative: false,
-        attributedTo: alias,
-        observedAt: Date.now() / 1000,
-        error: null,
-      }));
-      return { results, fallback: false, reason: "" };
-    } catch (err) {
-      return { results: null, fallback: false, reason: `opencode probe failed: ${(err as Error).message}` };
     }
   }
   return { results: null, fallback: true, reason: `${tool} live probe stays in Python this wave` };

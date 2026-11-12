@@ -61,11 +61,8 @@ test("usageArgs builds argv entries, never a shell string", () => {
 });
 
 test("switch only where it is non-interactive", () => {
-  assert.deepEqual(switchArgs("opencode", account()), ["opencode", "switch", "anthropic", "c1", "--json"]);
   assert.deepEqual(switchArgs("claude", account({ identity: { number: "2" } })), ["switch", "2", "--json"]);
   assert.deepEqual(switchArgs("codex", account({ identity: { number: "3" } })), ["codex", "switch", "3", "--json"]);
-  assert.equal(switchArgs("opencode", account({ active: true })), null);
-  assert.equal(switchArgs("opencode", account({ active: null })), null);
   assert.equal(switchArgs("muse", account()), null);
   assert.equal(switchArgs("kiro", account()), null);
 });

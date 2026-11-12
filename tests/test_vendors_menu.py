@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from claude_swap.vendors.core import (
     AccountView,
-    UsageKind,
-    UsageObservation,
     UsageResult,
     UsageState,
     UsageWindow,
@@ -21,10 +19,10 @@ from claude_swap.vendors.overview import Overview, ToolSummary
 from claude_swap.vendors.registry import ToolRegistry
 from claude_swap.vendors.service import VendorService
 from claude_swap.vendors.store import VendorStore
-from tests.vendor_helpers import FakeRunner, RunResult, ok
+from tests.vendor_helpers import FakeRunner, ok
 
 NOW = 2_000_000_000.0
-OC = "/b/opencode"
+MUSE = "/b/muse"
 
 
 def credits(used=1136.0, limit=2000.0, state=UsageState.AVAILABLE, **kw):
@@ -55,9 +53,6 @@ def labels(section):
 
 
 def test_which_accounts_a_click_can_switch():
-    assert switchable("opencode", False, "anthropic")
-    assert not switchable("opencode", True, "anthropic")
-    assert not switchable("opencode", None, "anthropic")
     assert switchable("muse", False, None, "browser")
     assert not switchable("muse", None, None, "api-key")  # `ccswap muse run`, not a login
     assert switchable("kiro", False, None, "login")
@@ -115,42 +110,9 @@ def test_stale_data_shows_last_numbers_with_no_label():
 
 
 def test_not_installed_offers_only_install_docs():
-    section = section_for(ToolSummary("opencode", "OpenCode"), "https://opencode.ai/docs", NOW)
-    assert section.title == "OpenCode · not installed"
+    section = section_for(ToolSummary("kiro", "Kiro CLI"), "https://kiro.dev/docs/cli", NOW)
+    assert section.title == "Kiro CLI · not installed"
     assert [r.action for r in section.rows if r] == [None, "open"]
-
-
-def test_account_rows_keep_each_accounts_own_usage_and_switchability():
-    accounts = [
-        (
-            AccountView(
-                "opencode",
-                "work",
-                "oauth",
-                "anthropic",
-                {"account": "work", "id": "c1"},
-                active=True,
-            ),
-            UsageResult(UsageState.UNAVAILABLE, "per provider, not per account"),
-        ),
-        (
-            AccountView(
-                "opencode",
-                "alt",
-                "oauth",
-                "anthropic",
-                {"account": "alt", "id": "c2"},
-                active=False,
-            ),
-            UsageResult(UsageState.UNAVAILABLE, "per provider, not per account"),
-        ),
-    ]
-    summary = ToolSummary("opencode", "OpenCode", installed=True, accounts=accounts)
-    rows = [r for r in section_for(summary, None, NOW).rows if r and r.label.startswith("  ")]
-    assert [(r.checked, r.action, r.selector) for r in rows] == [
-        (True, None, None),
-        (False, "switch", "c2"),
-    ]
 
 
 def test_muse_api_key_accounts_are_listed_but_never_clickable():
@@ -231,19 +193,14 @@ def test_loading_section_is_explicit():
 
 
 def test_collect_sections_isolates_a_broken_tool(tmp_path):
-    r = FakeRunner({"opencode": OC})
-    r.on(OC, "--version", result=ok("1.99.0"))
-    r.on(OC, "auth", "--help", result=RunResult(0, stderr="opencode auth switch"))
-    r.on(OC, "auth", "list", "--help", result=RunResult(0, stderr="--format"))
-    r.on(OC, "auth", "login", "--help", result=RunResult(0, stderr=""))
-    r.on(OC, "auth", "list", "--format", "json", result=ok("garbage"))
-    r.on(OC, "db", "--help", result=RunResult(0, stderr="query --format"))
-    r.on(OC, "db", result=ok("[]"))
+    r = FakeRunner({"muse": MUSE})
+    r.on(MUSE, "--version", result=ok("1.4.14"))
+    r.on(MUSE, "usage", "--json", result=ok("garbage"))
     svc = VendorService(ToolRegistry.default(r), VendorStore(tmp_path / "v"))
     sections = collect_sections(Overview(svc, legacy=[]), now=NOW)
-    assert set(sections) == {"muse", "kiro", "opencode"}
-    assert sections["muse"].title == "Muse Code · not installed"
-    assert any("malformed" in label for label in labels(sections["opencode"]))
+    assert set(sections) == {"muse", "kiro"}
+    assert sections["kiro"].title == "Kiro CLI · not installed"
+    assert sections["muse"].title == "Muse Code · —"
 
 
 def test_top_level_account_rows_look_like_claude_codes():
@@ -274,7 +231,7 @@ def test_top_level_account_rows_look_like_claude_codes():
     rows = section.accounts
     assert [r.label.split("  ")[0] for r in rows] == ["1", "2", "3"]
     assert rows[0].checked and rows[0].action is None  # active: the check mark, no action
-    assert rows[1].action == "switch" and rows[1].selector == "kiro-b" and not rows[1].raw
+    assert rows[1].action == "switch" and rows[1].selector == "kiro-b"
     assert "[AWS 151869951925]" in rows[1].label
     assert "credits 10,000/10,000" in rows[1].label and "stale" not in rows[1].label.lower()
     assert rows[2].action is None  # an API key is run, not switched
@@ -345,51 +302,6 @@ def test_muse_account_rows_show_countdown_but_title_does_not():
     assert section.accounts[0].label.endswith("5h 101% (12m) · wk 43% (3d 15h)")
 
 
-def go_result(state=UsageState.AVAILABLE):
-    return UsageResult(
-        state,
-        "Workspace access denied",
-        observations=(
-            UsageObservation(
-                UsageKind.LOCAL_TOKENS,
-                "opencode db (local message records)",
-                False,
-                scope="local",
-                data={
-                    "providers": [
-                        {
-                            "provider": "opencode-go",
-                            "models": [],
-                            "totals": {"30d": {"messages": 7, "costUsd": 2.5}},
-                        }
-                    ],
-                    "go": {
-                        "models": [
-                            {
-                                "model": "muse-spark",
-                                "fiveHourUsd": 0.5,
-                                "weekUsd": 4.0,
-                                "thirtyDayUsd": 38.48,
-                            }
-                        ],
-                        "rule": "Go limits each model separately",
-                        "unit": "usd-equivalent",
-                    },
-                    "lastErrors": {
-                        "opencode-go": {
-                            "message": "Workspace access denied",
-                            "status": 403,
-                            "at": 1.0,
-                        }
-                    },
-                },
-            ),
-        ),
-        error="last request refused: 403",
-        observed_at=NOW - 60,
-    )
-
-
 BANNED_MENU_WORDS = ["stale", "unavailable", "sign-in", "refused", "error", "failed", "not logged"]
 
 
@@ -406,7 +318,6 @@ def test_menu_rows_never_show_failure_text():
                 reason="usage unavailable: not logged in",
                 error="refresh failed with error",
             ),
-            "go": go_result(state),
         }
         for name, usage in variants.items():
             summary = ToolSummary(
@@ -439,28 +350,5 @@ def test_menu_rows_never_show_failure_text():
                 assert word not in lowered, (state, name, word, text)
             if name == "bare":
                 assert "—" in text
-            elif name == "windows":
-                assert "1,136" in text  # last-good numbers, kept with no label
             else:
-                assert "$0.50" in text and "$4.00" in text  # Go figures, kept
-
-
-def test_unregistered_opencode_rows_switch_by_vendor_id():
-    accounts = [
-        (
-            AccountView(
-                "opencode",
-                "anthropic/alt",
-                "oauth",
-                "anthropic",
-                {"account": "alt", "id": "c2"},
-                registered=False,
-                active=False,
-            ),
-            UsageResult(UsageState.UNAVAILABLE, "x"),
-        )
-    ]
-    (row,) = section_for(
-        ToolSummary("opencode", "OpenCode", installed=True, accounts=accounts), None, NOW
-    ).accounts
-    assert (row.action, row.selector, row.provider, row.raw) == ("switch", "c2", "anthropic", True)
+                assert "1,136" in text  # last-good numbers, kept with no label

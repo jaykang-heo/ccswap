@@ -20,14 +20,11 @@ from claude_swap.vendors.overview import (
     LABELS,
     Overview,
     ToolSummary,
-    go_headline,
-    go_lines,
-    local_cost_line,
     reset_text,
     window_text,
 )
 
-MENU_TOOLS = ("muse", "kiro", "opencode")  # Claude/Codex keep their established menus
+MENU_TOOLS = ("muse", "kiro")  # Claude/Codex keep their established menus
 
 
 @dataclass(frozen=True)
@@ -39,7 +36,6 @@ class MenuRow:
     provider: str | None = None
     url: str | None = None
     checked: bool = False
-    raw: bool = False  # selector is a vendor id (unregistered OpenCode account), not an alias
 
 
 @dataclass
@@ -88,7 +84,7 @@ def switchable(
 ) -> bool:
     """Can a click switch to this account without a terminal?
 
-    OpenCode: native ``auth switch``.  Muse: a browser login ccswap keeps a token for.
+    Muse: a browser login ccswap keeps a token for.
     A Muse API key is listed but never clickable (``ccswap muse run``).  Kiro:
     another profile of the signed-in login, via Kiro's own picker.  A different Kiro
     *login* still needs an interactive sign-in, and a Kiro API key is process-scoped
@@ -96,8 +92,6 @@ def switchable(
     """
     if active is True:
         return False
-    if tool == "opencode":
-        return active is False and bool(provider)
     if tool == "muse":
         # An API key is `ccswap muse run`, not a login.  A click used to store the key
         # and replace the browser session, and the row could only say "usage unavailable".
@@ -117,7 +111,6 @@ def _ago(ts: float | None, now: float) -> str:
     return f"{datetime.fromtimestamp(ts).strftime('%H:%M')} ({span})"
 
 
-_REFUSED_SUFFIX = " · last request refused"
 
 
 def _countdown(window: UsageWindow, now: float) -> str | None:
@@ -141,7 +134,7 @@ def _countdown(window: UsageWindow, now: float) -> str | None:
 
 
 def _menu_numbers(result: UsageResult, now: float | None = None) -> str | None:
-    """This reading's figures with no state words: windows, else the Go/local line."""
+    """This reading's figures with no state words: its windows."""
     if result.windows:
         parts = []
         for w in result.windows[:2]:
@@ -150,10 +143,7 @@ def _menu_numbers(result: UsageResult, now: float | None = None) -> str | None:
                 text += f" ({span})"  # time until this window resets, like Claude Code's
             parts.append(text)
         return " · ".join(parts)
-    text = go_headline(result)
-    if text is not None:
-        return text.removesuffix(_REFUSED_SUFFIX)
-    return local_cost_line(result)
+    return None
 
 
 def menu_usage_text(result: UsageResult | None, now: float | None = None) -> str:
@@ -187,29 +177,6 @@ def usage_rows(tool: str, result: UsageResult, now: float, indent: str = "") -> 
         reset = reset_text(w, now)
         if reset:
             rows.append(MenuRow(f"{indent}    {reset}", tool))
-    for line in go_lines(result):
-        if "refused" in line.lower():
-            continue  # the menu never names a refused request; the CLI/TUI detail keeps it
-        rows.append(
-            MenuRow(
-                f"{indent}{line.strip() if not line.startswith('  ') else '    ' + line.strip()}"[
-                    :110
-                ],
-                tool,
-            )
-        )
-    local = local_cost_line(result)
-    if local:
-        rows.append(MenuRow(f"{indent}{local} (OpenCode estimate, not a quota)", tool))
-        for obs in result.observations:
-            for p in (obs.data.get("providers") or [])[:6] if isinstance(obs.data, dict) else []:
-                t = p["totals"]["30d"]
-                rows.append(
-                    MenuRow(
-                        f"{indent}    {p['provider']}: {t['messages']:,} msgs · ${t['costUsd']:,.2f}",
-                        tool,
-                    )
-                )
     # No state or reason row: a past reading shows its numbers above with no label,
     # and a bare failure shows no usage rows at all (callers render "—").
     if result.observed_at:
@@ -257,11 +224,7 @@ def section_for(summary: ToolSummary, docs: str | None, now: float) -> MenuSecti
     shown = _real_accounts(summary.accounts)
     for number, (view, usage) in enumerate(shown, 1):
         can = _row_switchable(tool, view, usage)
-        selector = (
-            (view.identity.get("id") or view.identity.get("account"))
-            if tool == "opencode"
-            else view.alias
-        )
+        selector = view.alias
         email = view.identity.get("email", "")
         label = f"{number}  {view.alias}"
         if email and email != view.alias:
@@ -275,9 +238,7 @@ def section_for(summary: ToolSummary, docs: str | None, now: float) -> MenuSecti
                 tool,
                 action="switch" if can else None,
                 selector=selector if can else None,
-                provider=view.provider,
                 checked=bool(view.active) and not _session_dead(usage),
-                raw=tool == "opencode" and not view.registered,
             )
         )
     for view, usage in shown:
@@ -291,27 +252,16 @@ def section_for(summary: ToolSummary, docs: str | None, now: float) -> MenuSecti
         # A Muse API key is listed for the captain's "every account" view but stays
         # inert: no click and no "switch in terminal" hint (it runs, not switches).
         inert_key = tool == "muse" and view.kind == "api-key"
-        hint = (
-            ""
-            if ok or view.active or inert_key
-            else ("  — switch in terminal" if tool != "opencode" else "")
-        )
+        hint = "" if ok or view.active or inert_key else "  — switch in terminal"
         mark = "○" if _session_dead(usage) else mark
         text = f"  {mark} {where}{view.alias} · {menu_usage_text(usage, now)}{hint}"
-        if not ok:
-            selector = None
-        elif tool == "opencode":
-            selector = view.identity.get("id") or view.identity.get("account")
-        else:
-            selector = view.alias
+        selector = view.alias if ok else None
         rows.append(
             MenuRow(
                 text[:110],
                 tool,
                 action="switch" if ok else None,
                 selector=selector,
-                raw=tool == "opencode" and not view.registered,
-                provider=view.provider,
                 checked=bool(view.active) and not _session_dead(usage),
             )
         )

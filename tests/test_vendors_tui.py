@@ -14,9 +14,9 @@ from claude_swap.vendors.registry import ToolRegistry
 from claude_swap.vendors.service import VendorService
 from claude_swap.vendors.store import VendorStore
 from tests.test_tui import FakeSwitcher, make_account, make_app, settle
-from tests.vendor_helpers import FakeRunner, RunResult, fail, ok
+from tests.vendor_helpers import FakeRunner, fail, ok
 
-MUSE, KIRO, OC = "/b/muse", "/b/kiro-cli", "/b/opencode"
+MUSE, KIRO = "/b/muse", "/b/kiro-cli"
 KEY = "mk_live_0123456789abcdef"
 IDC = {
     "accountType": "IamIdentityCenter",
@@ -43,60 +43,14 @@ def _env(monkeypatch):
     monkeypatch.delenv("KIRO_API_KEY", raising=False)
 
 
-def world(tmp_path, *, installed=("muse", "opencode", "kiro"), who=IDC):
-    bins = {"muse": MUSE, "opencode": OC, "kiro-cli": KIRO}
+def world(tmp_path, *, installed=("muse", "kiro"), who=IDC):
+    bins = {"muse": MUSE, "kiro-cli": KIRO}
     r = FakeRunner({k: v for k, v in bins.items() if {"kiro-cli": "kiro"}.get(k, k) in installed})
     r.on(MUSE, "--version", result=ok("Muse Code 1.4.14\n"))
-    r.on(OC, "--version", result=ok("1.99.0\n"))
     r.on(KIRO, "--version", result=ok("kiro-cli 3.1.0\n"))
     r.on(KIRO, "whoami", result=ok(json.dumps(who)))
     r.on(KIRO, "chat", "--help", result=ok("--no-interactive --v2 --v3"))
     r.on(KIRO, "chat", "--no-interactive", "--v2", "/usage", result=ok(KIRO_REPORT))
-    r.on(OC, "auth", "--help", result=RunResult(0, stderr="  opencode auth switch <p> <a>\n"))
-    r.on(OC, "auth", "list", "--help", result=RunResult(0, stderr="--format"))
-    r.on(OC, "auth", "login", "--help", result=RunResult(0, stderr="--provider"))
-    r.on(OC, "db", "--help", result=RunResult(0, stderr="query --format json"))
-    r.on(
-        OC,
-        "db",
-        result=ok(
-            json.dumps(
-                [
-                    {
-                        "provider": "anthropic",
-                        "model": "m1",
-                        "last": 1,
-                        "n_24h": 2,
-                        "cost_24h": 0.5,
-                        "n_7d": 2,
-                        "cost_7d": 0.5,
-                        "n_30d": 3,
-                        "cost_30d": 1.25,
-                        "n_all": 9,
-                        "cost_all": 4.0,
-                    }
-                ]
-            )
-        ),
-    )
-    rows = [
-        {"provider": "anthropic", "id": "c1", "label": "work", "type": "oauth", "active": True},
-        {
-            "provider": "anthropic",
-            "id": "c2",
-            "label": "personal",
-            "type": "oauth",
-            "active": False,
-        },
-    ]
-    state = {"rows": rows}
-    r.on(OC, "auth", "list", "--format", "json", result=lambda c: ok(json.dumps(state["rows"])))
-
-    def do_switch(call):
-        state["rows"] = [{**x, "active": x["id"] == call.argv[-1]} for x in state["rows"]]
-        return ok()
-
-    r.on(OC, "auth", "switch", result=do_switch)
     r.on(MUSE, "auth", "set", result=ok())
     r.on(
         MUSE,
@@ -149,7 +103,7 @@ async def test_number_keys_reach_every_tool_as_a_peer(tmp_path):
     app = app_with(tmp_path, svc, [make_account(1, active=True)])
     async with app.run_test(size=(110, 40)) as pilot:
         await settle(pilot)
-        for key, tool in (("3", "muse"), ("4", "kiro"), ("5", "opencode")):
+        for key, tool in (("3", "muse"), ("4", "kiro")):
             await goto(pilot, key)
             assert isinstance(app.screen, ToolScreen) and app.screen.tool == tool
             assert (
@@ -172,7 +126,6 @@ async def test_peer_row_marks_the_current_tool():
         "Codex",
         "Muse Code",
         "Kiro CLI",
-        "OpenCode",
         "Antigravity",
         "Overview",
     ):
@@ -261,27 +214,6 @@ async def test_kiro_page_shows_credits_and_reset_for_the_signed_in_account_only(
         assert rows["a"].view.active is True and rows["a"].usage.windows
         assert rows["b"].view.active is False and rows["b"].usage.windows == ()
         assert "not the signed-in" in rows["b"].usage.reason
-
-
-@pytest.mark.asyncio
-async def test_opencode_page_separates_local_stats_from_quota_and_switches(tmp_path):
-    svc, runner = world(tmp_path)
-    app = app_with(tmp_path, svc)
-    async with app.run_test(size=(110, 40)) as pilot:
-        await goto(pilot, "5")
-        usage = text_of(app.screen, "#tool-usage")
-        assert "local" in usage and "not a quota" in usage and "anthropic" in usage
-        rows = list(app.screen.query(AccountRow))
-        assert [(r.view.provider, r.view.identity["account"]) for r in rows] == [
-            ("anthropic", "work"),
-            ("anthropic", "personal"),
-        ]
-        app.screen.query_one("#taccounts", ListView).index = 1
-        await pilot.pause()
-        await goto(pilot, "s")
-        await drain(pilot)
-        assert (OC, "auth", "switch", "anthropic", "c2") in runner.argvs()
-        assert [r.view.active for r in app.screen.query(AccountRow)] == [False, True]
 
 
 @pytest.mark.asyncio
@@ -409,12 +341,12 @@ async def test_remove_forgets_registration_only_after_confirm(tmp_path):
 
 @pytest.mark.asyncio
 async def test_not_installed_tool_page_says_so(tmp_path):
-    svc, _ = world(tmp_path, installed=("kiro",))
+    svc, _ = world(tmp_path, installed=())
     app = app_with(tmp_path, svc)
     async with app.run_test(size=(110, 40)) as pilot:
         await goto(pilot, "3")
         assert "not installed" in text_of(app.screen, "#tool-head")
-        await goto(pilot, "5")
+        await goto(pilot, "4")
         assert "not installed" in text_of(app.screen, "#tool-head")
 
 
@@ -433,7 +365,7 @@ async def test_failed_refresh_keeps_last_good_data_marked_stale(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_overview_lists_all_six_tools_and_opens_them(tmp_path):
+async def test_overview_lists_all_five_tools_and_opens_them(tmp_path):
     svc, _ = world(tmp_path)
     app = app_with(tmp_path, svc, [make_account(1, active=True)])
     async with app.run_test(size=(110, 44)) as pilot:
@@ -441,13 +373,9 @@ async def test_overview_lists_all_six_tools_and_opens_them(tmp_path):
         await goto(pilot, "0")
         await settle(pilot)
         rows = list(app.screen.query(OverviewRow))
-        assert [r.tool for r in rows] == ["claude", "codex", "muse", "kiro", "opencode", "agy"]
+        assert [r.tool for r in rows] == ["claude", "codex", "muse", "kiro", "agy"]
         labels = {r.tool: str(r.query_one(Static).render()) for r in rows}
-        assert (
-            "5h 34%" in labels["muse"]
-            and "credits" in labels["kiro"]
-            and "local 30d" in labels["opencode"]
-        )
+        assert "5h 34%" in labels["muse"] and "credits" in labels["kiro"]
         app.screen.query_one("#overview", ListView).index = 3
         await pilot.pause()
         await goto(pilot, "enter")

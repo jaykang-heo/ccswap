@@ -71,9 +71,9 @@ def test_duplicate_alias_case_insensitive(store):
 
 
 def test_same_alias_allowed_for_different_providers(store):
-    store.add(rec("main", "opencode", "provider-account", provider="anthropic"))
-    store.add(rec("main", "opencode", "provider-account", provider="openai"))
-    assert len(store.records("opencode")) == 2
+    store.add(rec("main", "muse", "provider-account", provider="anthropic"))
+    store.add(rec("main", "muse", "provider-account", provider="openai"))
+    assert len(store.records("muse")) == 2
 
 
 def test_namespacing_isolates_tools(store):
@@ -200,11 +200,9 @@ def test_active_tracking_and_clear_on_remove(store):
 
 
 def test_active_by_provider(store):
-    store.set_active("opencode", "w", "anthropic")
-    store.set_active("opencode", "p", "openai")
-    assert (
-        store.active("opencode", "anthropic") == "w" and store.active("opencode", "openai") == "p"
-    )
+    store.set_active("muse", "w", "anthropic")
+    store.set_active("muse", "p", "openai")
+    assert store.active("muse", "anthropic") == "w" and store.active("muse", "openai") == "p"
 
 
 def test_concurrent_adds_lose_nothing(store):
@@ -226,12 +224,12 @@ def test_concurrent_adds_lose_nothing(store):
 
 def test_installer_directory_is_found_when_not_on_path(tmp_path, monkeypatch):
     from claude_swap.vendors.core import SubprocessRunner
-    from claude_swap.vendors.opencode import OpenCodeAdapter
+    from claude_swap.vendors.kiro import KiroAdapter
 
     home = tmp_path / "home"
-    binary = home / ".opencode" / "bin" / "opencode"
+    binary = home / ".local" / "bin" / "kiro-cli"
     binary.parent.mkdir(parents=True)
-    binary.write_text("#!/bin/sh\necho 1.2.3\n")
+    binary.write_text("#!/bin/sh\necho kiro-cli 1.2.3\n")
     binary.chmod(0o755)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("PATH", str(tmp_path / "empty"))
@@ -240,13 +238,13 @@ def test_installer_directory_is_found_when_not_on_path(tmp_path, monkeypatch):
         def which(self, name):
             return None
 
-    info = OpenCodeAdapter(NoPath()).detect()
+    info = KiroAdapter(NoPath()).detect()
     if sys.platform != "win32":
         assert info.installed and info.path == str(binary) and info.version == "1.2.3"
 
 
 def test_injected_runners_never_probe_the_real_filesystem(tmp_path, monkeypatch):
-    from claude_swap.vendors.opencode import OpenCodeAdapter
+    from claude_swap.vendors.kiro import KiroAdapter
     from tests.vendor_helpers import FakeRunner
 
-    assert OpenCodeAdapter(FakeRunner()).detect().installed is False
+    assert KiroAdapter(FakeRunner()).detect().installed is False

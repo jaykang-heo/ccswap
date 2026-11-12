@@ -45,7 +45,6 @@ export interface BinaryProbe {
 
 const VERSION_ARGV: Record<string, string[]> = {
   muse: ["muse", "--version"],
-  opencode: ["opencode", "--version"],
   kiro: ["kiro-cli", "--version"],
 };
 

@@ -1,4 +1,4 @@
-# Vendor compatibility: Muse Code, OpenCode, Kiro CLI
+# Vendor compatibility: Muse Code, Kiro CLI
 
 This matrix says what ccswap can really do with each tool, and how. It was written
 against the binaries installed while developing the integration:
@@ -6,7 +6,6 @@ against the binaries installed while developing the integration:
 | Tool | Version checked | How it was verified |
 |---|---|---|
 | Muse Code (`muse`) | 1.4.14 (1.4.14-R7309.1) | `--help`, `auth set --help`, `login/logout/usage --help`, a live `muse usage --json`, [auth docs](https://www.musemuse.dev/docs/muse-code/auth), [subscription docs](https://www.musemuse.dev/docs/muse-code/subscriptions) |
-| OpenCode (`opencode`) | 1.18.35 | `--help`, `providers/auth` subcommands, live `auth list`, live `stats`, the shape (keys only) of `auth.json`, [providers docs](https://opencode.ai/docs/cli/providers) (describes a *newer* release) |
 | Kiro CLI (`kiro-cli`) | 3.1.0 | `--help`, `login/logout/whoami/profile/chat --help`, live `whoami -f json`, live `chat --list-models`, Kiro headless-mode documentation |
 
 Legend: **supported** = implemented and tested against a faithful fake of the real process
@@ -15,7 +14,7 @@ kinds or tool versions; **unsupported** = the vendor product does not offer it, 
 says so instead of imitating it; **unverified** = depends on behaviour that could not be
 checked here.
 
-`ccswap vendors capabilities [muse|opencode|kiro] [--json]` prints the same table from the
+`ccswap vendors capabilities [muse|kiro] [--json]` prints the same table from the
 code, so the table and the behaviour cannot drift apart.
 
 ## Muse Code
@@ -43,29 +42,6 @@ code, so the table and the behaviour cannot drift apart.
 | Running-session restart | n/a | running Muse sessions keep their credential until restarted (reported) |
 | Logout | conditional | `muse logout` (never run implicitly; `ccswap muse remove` only forgets the registration) |
 | Failure / recovery | supported | failed `auth set` leaves local metadata untouched; messages are redacted |
-
-## OpenCode
-
-| Capability | Status | Mechanism |
-|---|---|---|
-| Binary / discovery | supported | `opencode` on `PATH` |
-| Version | supported | `opencode --version` (live: `1.18.35`) |
-| Capability detection | supported | commands are **probed from `--help`**, not inferred from version numbers: `auth --help` (is there `switch`?), `auth list --help` (is there `--format`?), `auth login --help` (`--provider`?) |
-| Enumeration, newer releases | supported | `opencode auth list --format json`. The JSON field names could **not** be verified against a live new release; parsing is defensive (several shapes) and covered by tests, but treat as *unverified live* |
-| Enumeration, 1.18.x | conditional | no JSON listing; ccswap reads **provider ids and credential types only** (never values) from the legacy `~/.local/share/opencode/auth.json` (`$XDG_DATA_HOME`), one credential per provider |
-| SQLite credential database | n/a | **never read or written** by ccswap |
-| Provider vs account | supported | an account is `(provider, account)`; several providers are active at once; never modelled as one global login |
-| Registration | supported | an alias for a provider/account OpenCode already lists (verified to exist first) |
-| Native activation | conditional | `opencode auth switch <provider> <account>` where the installed OpenCode has it. **1.18.35 does not**, so `switch` exits 3 with the upgrade/`/connect` instructions |
-| Post-switch verification | supported | the account list is re-read; if the vendor did not actually change, ccswap switches back through the same command and reports failure |
-| Login / logout | supported | `opencode auth login [--provider p]`, `opencode auth logout <provider> [account]` (explicit, `--yes`) |
-| Provider configuration | supported | `opencode.json` (`$OPENCODE_CONFIG`, `$XDG_CONFIG_HOME`) read-only: model and configured provider *names*, shown separately from login state; never rewritten |
-| Usage / quota | conditional | **Local statistics only.** `opencode db "<constant SELECT>" --format json` (the official CLI's DB tool) aggregates assistant messages per provider and model: message count, input/output/reasoning/cache tokens and OpenCode's own USD cost estimate for 24h/7d/30d/all time. The query reads only the `message` table, never credential/account tables or message content. Older releases fall back to `opencode stats` text. **Provider quotas** (subscription windows, credits, rate limits) are not reported by OpenCode or by any interface it ships, so they are shown as not reported |
-| Per-account usage | conditional | message records carry provider and model but no account, so a provider's statistics belong to its account only while it is the provider's sole registered account; a second account for a provider is refused at `add` |
-| Rate-limit detection | unsupported | provider-specific; not exposed |
-| Auto-switching | unsupported | no verified per-account quota to compare |
-| Per-process isolation / `run` | unsupported | credentials are resolved by the shared OpenCode server; there is no per-process account selector, so no `opencode run` command is offered |
-| Running-session restart | n/a | servers/sessions keep the old account until restarted (reported) |
 
 ## Kiro CLI
 
@@ -96,15 +72,15 @@ skills and session data are never read or modified; an agent is not an account.
 
 ## Surfaces
 
-| Surface | Muse | OpenCode | Kiro |
-|---|---|---|---|
-| CLI (`ccswap <tool> ...`) | list, status, usage, add, remove, switch, run | list/accounts, status, usage, add, remove, switch, login, logout | list, status, usage, add, remove, switch, run |
-| TUI (own page: keys `3` / `5` / `4`, menu entries) | accounts, usage bars, switch (API key, confirmed), remove | provider accounts, local stats, switch, remove | accounts, credits, reset; login switch explained (CLI) |
-| Menu bar (macOS) | own submenu: plan, windows, resets, accounts, refresh | own submenu + switch | own submenu: credits, reset, accounts, refresh |
-| Raycast | Show Muse Code Accounts | Show OpenCode Accounts (+ switch) | Show Kiro CLI Accounts |
-| All tools | `ccswap usage`, TUI overview (`0`), Raycast "Show All Usage" | | |
+| Surface | Muse | Kiro |
+|---|---|---|
+| CLI (`ccswap <tool> ...`) | list, status, usage, add, remove, switch, run | list, status, usage, add, remove, switch, run |
+| TUI (own page: keys `3` / `4`, menu entries) | accounts, usage bars, switch (API key, confirmed), remove | accounts, credits, reset; login switch explained (CLI) |
+| Menu bar (macOS) | own submenu: plan, windows, resets, accounts, refresh | own submenu: credits, reset, accounts, refresh |
+| Raycast | Show Muse Code Accounts | Show Kiro CLI Accounts |
+| All tools | `ccswap usage`, TUI overview (`0`), Raycast "Show All Usage" | |
 
-Menu bar and Raycast only switch OpenCode accounts (and Claude/Codex through their existing
-commands), because those switches are non-interactive and need no confirmation. Muse and
-Kiro rows show the exact command to run. The menu content is built in `vendors/menu.py`
+Raycast only switches Claude/Codex (through their existing commands), because those
+switches are non-interactive and need no confirmation. Muse and Kiro rows show the exact
+command to run. The menu content is built in `vendors/menu.py`
 (unit-tested); `menubar.py` only renders it.

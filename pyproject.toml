@@ -1,7 +1,7 @@
 [project]
 name = "ccswap"
 version = "0.49.0+vendors.1"
-description = "Multi-account and usage manager for Claude Code, OpenAI Codex, Muse Code, OpenCode and Kiro CLI (fork of errhythm/ccswap)"
+description = "Multi-account and usage manager for Claude Code, OpenAI Codex, Muse Code and Kiro CLI (fork of errhythm/ccswap)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -26,7 +26,6 @@ keywords = [
     "codex",
     "codex-cli",
     "muse",
-    "opencode",
     "kiro",
     "openai",
     "account-switcher",

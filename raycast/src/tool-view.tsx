@@ -58,7 +58,7 @@ export function ToolSection({ bin, tool, revalidate }: { bin: string; tool: Tool
         <List.Item
           key={`${tool.tool}-current`}
           icon={Icon.Gauge}
-          title={tool.tool === "opencode" ? "Local usage (all providers)" : "Current credential"}
+          title="Current credential"
           subtitle={tool.headline}
           detail={<List.Item.Detail markdown={usageMarkdown(tool.label, tool.usage)} />}
           actions={

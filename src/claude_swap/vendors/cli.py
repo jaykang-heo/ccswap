@@ -1,4 +1,4 @@
-"""``ccswap vendors`` / ``ccswap muse|opencode|kiro`` command line.
+"""``ccswap vendors`` / ``ccswap muse|kiro`` command line.
 
 Exit status: 0 success, 1 error, 2 usage error (argparse), 3 the vendor product
 cannot do what was asked (see ``docs/vendor-compatibility.md``).  With
@@ -28,7 +28,7 @@ from claude_swap.vendors.core import (
 )
 from claude_swap.vendors.service import VendorService
 
-TOOLS = ("muse", "opencode", "kiro")
+TOOLS = ("muse", "kiro")
 
 
 def _prog() -> str:
@@ -44,15 +44,6 @@ def read_secret(prompt: str, *, from_stdin: bool) -> str:
     else:
         value = sys.stdin.readline()
     return value.strip()
-
-
-def confirm(question: str) -> bool:
-    if not (sys.stdin.isatty() and sys.stdout.isatty()):
-        return False
-    try:
-        return input(f"{question} [y/N] ").strip().lower() in ("y", "yes")
-    except EOFError:
-        return False
 
 
 # ---- rendering -------------------------------------------------------------
@@ -116,76 +107,59 @@ def _parser(tool: str) -> argparse.ArgumentParser:
 
     for name in ("list", "status"):
         with_json(sub.add_parser(name, help=f"{name.capitalize()} {tool} accounts"))
-    if tool == "opencode":
-        with_json(sub.add_parser("accounts", help="Alias of list"))
 
     usage = with_json(sub.add_parser("usage", help="Show verified usage, or why it is unavailable"))
     usage.add_argument("account", nargs="?", metavar="ALIAS|NUM")
     usage.add_argument("--refresh", action="store_true", help="Ignore the 60 s cache")
-    if tool == "opencode":
-        usage.add_argument(
-            "--local", action="store_true", help="Local token/cost statistics (not a quota)"
-        )
 
     add = with_json(sub.add_parser("add", help="Register an account (no vendor login is changed)"))
-    if tool == "opencode":
-        add.add_argument("alias")
-        add.add_argument("--provider", required=True)
-        add.add_argument("--account", help="OpenCode account label or id")
+    add.add_argument("alias")
+    if tool == "muse":
+        add.add_argument(
+            "--browser",
+            action="store_true",
+            help="Register the current browser login (ccswap keeps it so it can switch back)",
+        )
+        add.add_argument(
+            "--from-file",
+            metavar="PATH",
+            help="With --browser: a saved Muse login file instead",
+        )
     else:
-        add.add_argument("alias")
-        if tool == "muse":
-            add.add_argument(
-                "--browser",
-                action="store_true",
-                help="Register the current browser login (ccswap keeps it so it can switch back)",
-            )
-            add.add_argument(
-                "--from-file",
-                metavar="PATH",
-                help="With --browser: a saved Muse login file instead",
-            )
-        else:
-            add.add_argument(
-                "--api-key",
-                action="store_true",
-                help="Register a KIRO_API_KEY (read from stdin/prompt)",
-            )
-            add.add_argument("--social", choices=("google", "github"))
-            add.add_argument("--license", choices=("free", "pro"))
-            add.add_argument("--identity-provider", metavar="URL")
-            add.add_argument("--region")
-            add.add_argument("--device-flow", action="store_true")
-            add.add_argument(
-                "--profile-arn",
-                metavar="ARN",
-                help="Register another Kiro profile of the current login (e.g. a second AWS "
-                "account in your organization); see `kiro-cli profile`",
-            )
-            add.add_argument("--profile-name", help="Display name of that profile")
-        add.add_argument("--api-key-stdin", action="store_true", help="Read the key from stdin")
+        add.add_argument(
+            "--api-key",
+            action="store_true",
+            help="Register a KIRO_API_KEY (read from stdin/prompt)",
+        )
+        add.add_argument("--social", choices=("google", "github"))
+        add.add_argument("--license", choices=("free", "pro"))
+        add.add_argument("--identity-provider", metavar="URL")
+        add.add_argument("--region")
+        add.add_argument("--device-flow", action="store_true")
+        add.add_argument(
+            "--profile-arn",
+            metavar="ARN",
+            help="Register another Kiro profile of the current login (e.g. a second AWS "
+            "account in your organization); see `kiro-cli profile`",
+        )
+        add.add_argument("--profile-name", help="Display name of that profile")
+    add.add_argument("--api-key-stdin", action="store_true", help="Read the key from stdin")
 
     remove = with_json(
         sub.add_parser("remove", help="Forget a registration (vendor login untouched)")
     )
     remove.add_argument("account", metavar="ALIAS|NUM")
-    if tool == "opencode":
-        remove.add_argument("--provider")
 
     switch = with_json(
         sub.add_parser("switch", help="Make an account active using the vendor's own mechanism")
     )
-    if tool == "opencode":
-        switch.add_argument("provider")
-        switch.add_argument("account", metavar="ACCOUNT")
-    else:
-        switch.add_argument("account", metavar="ALIAS|NUM")
-        switch.add_argument(
-            "--login", action="store_true", help="Allow the interactive vendor login flow"
-        )
-        switch.add_argument(
-            "--yes", action="store_true", help="Confirm replacing the vendor's current login"
-        )
+    switch.add_argument("account", metavar="ALIAS|NUM")
+    switch.add_argument(
+        "--login", action="store_true", help="Allow the interactive vendor login flow"
+    )
+    switch.add_argument(
+        "--yes", action="store_true", help="Confirm replacing the vendor's current login"
+    )
 
     if tool in ("muse", "kiro"):
         run = sub.add_parser(
@@ -211,15 +185,6 @@ def _parser(tool: str) -> argparse.ArgumentParser:
         auto.add_argument(
             "--dry-run", action="store_true", help="Report what it would do; never switch"
         )
-    if tool == "opencode":
-        login = sub.add_parser("login", help="Run `opencode auth login` (interactive)")
-        login.add_argument("provider", nargs="?")
-        logout = sub.add_parser(
-            "logout", help="Run `opencode auth logout` (removes the vendor credential)"
-        )
-        logout.add_argument("provider")
-        logout.add_argument("account", nargs="?")
-        logout.add_argument("--yes", action="store_true")
     return parser
 
 
@@ -303,7 +268,7 @@ def _muse_auto(service: VendorService, args, as_json: bool) -> int:
 def _dispatch(tool: str, args, service: VendorService, as_json: bool) -> int:
     action = args.action
     adapter = service.adapter(tool)
-    if action in ("list", "accounts"):
+    if action == "list":
         views = service.list_views(tool)
         return _emit(
             service.list_payload(tool, views), as_json, lambda: render_accounts(tool, views)
@@ -312,10 +277,6 @@ def _dispatch(tool: str, args, service: VendorService, as_json: bool) -> int:
         payload = service.status_payload(tool)
         return _emit(payload, as_json, lambda: render_status(payload))
     if action == "usage":
-        if getattr(args, "local", False):
-            result = adapter.local_stats()  # type: ignore[attr-defined]
-            payload = {"schemaVersion": 1, "tool": tool, **result.to_json()}
-            return _emit(payload, as_json, lambda: render_usage(result))
         if args.account:
             result = service.usage(tool, args.account, refresh=args.refresh)
             payload = service.usage_envelope(tool, args.account, result)
@@ -329,9 +290,7 @@ def _dispatch(tool: str, args, service: VendorService, as_json: bool) -> int:
         return _emit(payload, as_json, lambda: print("\n".join(render_summary(summary))))
     if action == "add":
         options: dict = {}
-        if tool == "opencode":
-            options = {"provider": args.provider, "account": args.account}
-        elif tool == "muse":
+        if tool == "muse":
             options = {
                 "kind": "browser" if args.browser else "api-key",
                 "from_file": args.from_file,
@@ -361,7 +320,7 @@ def _dispatch(tool: str, args, service: VendorService, as_json: bool) -> int:
             ),
         )
     if action == "remove":
-        record = service.remove(tool, args.account, getattr(args, "provider", None))
+        record = service.remove(tool, args.account)
         return _emit(
             {"schemaVersion": 1, "tool": tool, "removed": record.alias},
             as_json,
@@ -370,18 +329,12 @@ def _dispatch(tool: str, args, service: VendorService, as_json: bool) -> int:
             ),
         )
     if action == "switch":
-        if tool == "opencode":
-            outcome, _ = service.switch(tool, args.account, provider=args.provider)
-        else:
-            outcome, _ = service.switch(
-                tool,
-                args.account,
-                assume_yes=args.yes,
-                interactive=args.login
-                and sys.stdin.isatty()
-                and sys.stdout.isatty()
-                and not as_json,
-            )
+        outcome, _ = service.switch(
+            tool,
+            args.account,
+            assume_yes=args.yes,
+            interactive=args.login and sys.stdin.isatty() and sys.stdout.isatty() and not as_json,
+        )
         payload = {"schemaVersion": 1, "tool": tool, **outcome.to_json()}
 
         def human() -> None:
@@ -416,16 +369,6 @@ def _dispatch(tool: str, args, service: VendorService, as_json: bool) -> int:
         return service.run(tool, account, extra)
     if action == "auto":
         return _muse_auto(service, args, as_json)
-    if action == "login":
-        return adapter.login(args.provider)  # type: ignore[attr-defined]
-    if action == "logout":
-        if not args.yes and not confirm(
-            f"Remove the {args.provider} credential from OpenCode itself?"
-        ):
-            raise VendorError(
-                "Refusing to log out without --yes (this deletes OpenCode's credential)"
-            )
-        return adapter.logout(args.provider, args.account)  # type: ignore[attr-defined]
     raise UnsupportedCapability(f"{tool} does not support '{action}'")
 
 
@@ -595,7 +538,7 @@ def claude_argv(argv: list[str]) -> list[str]:
 
     Claude Code is ccswap's original tool, so its commands already live at the top level
     (``ccswap switch``, ``ccswap add``, ...); this namespace only makes it a peer of
-    ``ccswap codex|muse|kiro|opencode`` without changing any of them.
+    ``ccswap codex|muse|kiro`` without changing any of them.
     """
     if not argv or argv[0] in ("-h", "--help", "help"):
         return ["--help"]

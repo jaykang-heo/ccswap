@@ -81,15 +81,6 @@
     "exit": 0
   },
   {
-    "file": "opencode-list.json",
-    "argv": [
-      "opencode",
-      "list",
-      "--json"
-    ],
-    "exit": 0
-  },
-  {
     "file": "kiro-list.json",
     "argv": [
       "kiro",

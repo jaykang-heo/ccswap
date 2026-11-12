@@ -2,8 +2,8 @@
 
 Claude Code, Codex and Antigravity keep their purpose-built switchers (`switcher.py`,
 `codex.py`, `agy.py`): their semantics (OAuth snapshots, shared quota windows, auto-switch
-engines) are rich and tested, and rewriting them would add risk for no gain. Muse, OpenCode
-and Kiro share nothing with them but the *shape* of the problem, so they live in a new,
+engines) are rich and tested, and rewriting them would add risk for no gain. Muse and Kiro
+share nothing with them but the *shape* of the problem, so they live in a new,
 small package, `claude_swap/vendors/`, that reuses the project's infrastructure
 (`paths`, `FileLock`, `atomic_write_text`, `spawn`, `error_envelope`).
 
@@ -11,9 +11,9 @@ small package, `claude_swap/vendors/`, that reuses the project's infrastructure
 
 | Concept | Where |
 |---|---|
-| Tool identity (Muse, OpenCode, Kiro) | `ToolAdapter.key`, `ToolRegistry` |
+| Tool identity (Muse, Kiro) | `ToolAdapter.key`, `ToolRegistry` |
 | Account identity (a registered account/profile of one tool) | `AccountRecord` (persisted, secret-free), `AccountView` (record + live state) |
-| Model provider (anthropic, openai, ...) | `AccountRecord.provider`, only OpenCode fills it |
+| Model provider (anthropic, openai, ...) | `AccountRecord.provider`, kept for stored data; no current vendor fills it |
 | Authentication capability | `RegistrationCapability`, `SwitchingCapability`, `auth_summary()` |
 | Usage capability | `UsageCapability` returning `UsageResult` with a `UsageKind` and `authoritative` flag |
 | Execution capability | `SessionCapability` returning a `LaunchSpec` |
@@ -36,8 +36,8 @@ status 3). There is no giant interface with `NotImplemented` stubs.
 ## First-class tools on every surface
 
 `vendors/overview.py` is the one place that collects every tool (Claude Code, Codex and
-Antigravity through read-only `legacy.py` bridges over their switchers' snapshots; Muse,
-Kiro and OpenCode through `VendorService`). Each tool runs on its own worker with its own
+Antigravity through read-only `legacy.py` bridges over their switchers' snapshots; Muse
+and Kiro through `VendorService`). Each tool runs on its own worker with its own
 deadline, and it defines the shared presentation (`headline`, `window_text`, `reset_text`).
 `ccswap usage`, the TUI tool pages (`tui/tools.py`), the menu-bar model (`vendors/menu.py`)
 and Raycast (`ccswap usage --json`) all consume it. A vendor added to `registry.py` shows
@@ -48,12 +48,12 @@ up in the overview, `ccswap usage` and Raycast's all-tools view with no UI chang
 `UsageResult.state` is `available | unavailable | unsupported | unauthenticated | stale |
 error`. Authoritative limits are `UsageWindow`s (`key`, `label`, `unit`, `used`, `limit`,
 `remaining`, `usedPercent`, `resetsAt` or a date-only `resetsOn`, `scope`), one per
-independently reported limit and never merged. Local statistics (OpenCode) are
+independently reported limit and never merged. Local statistics are
 `observations` with `authoritative: false`. Every result names its `source`,
 `attributedTo` and `observedAt`. Fields a tool did not report stay `null`, and a percentage
 is computed only from a `used`/`limit` pair in one unit.
 
-`VendorService.usage` adds per-tool TTLs (Muse 60 s, Kiro 180 s, OpenCode 300 s), request
+`VendorService.usage` adds per-tool TTLs (Muse 60 s, Kiro 180 s), request
 coalescing (one vendor call for concurrent askers), and a persistent last-good cache
 (`vendors/usage.json`, usage figures only). A failed refresh returns the earlier reading
 as `stale` with the new error. For the tool-level "active credential" reading, that only
@@ -73,18 +73,17 @@ Auto-switching needs a quota that can be compared across accounts and a switch c
 make without a terminal. Muse has both: each browser login is measured on its own, and a
 switch swaps the login file. `vendors/muse_autoswitch.py` holds its engine, which runs on the
 shared `autoswitch.*` settings like the Codex engine, and the policy a lane uses to pick its
-key. A running Muse session keeps the previous login until it is restarted. Kiro and OpenCode
-report `available: false` with the reason through `VendorService.auto_switch_state`. Missing
+key. A running Muse session keeps the previous login until it is restarted. Kiro reports
+`available: false` with the reason through `VendorService.auto_switch_state`. Missing
 quota is never read as "unlimited".
 
 ## Switching, transactionally
 
 `VendorService.switch`: validate target and capability -> resolve secret -> take the
 per-tool `switch-<tool>.lock` -> adapter performs the vendor-supported action -> adapter
-verifies where the vendor allows (OpenCode re-lists, Kiro runs `whoami`) -> record the
+verifies where the vendor allows (Kiro runs `whoami`) -> record the
 local "last activated" hint -> release lock. Vendor-controlled state cannot be rolled back by
-ccswap; OpenCode is restored through the vendor's own command when a switch does not stick,
-and every result says honestly whether it was `verified`.
+ccswap, and every result says honestly whether it was `verified`.
 
 ## Security model
 

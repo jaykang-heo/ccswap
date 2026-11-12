@@ -48,8 +48,7 @@
         "claude",
         "codex",
         "muse",
-        "kiro",
-        "opencode"
+        "kiro"
       ],
       "mode": "view"
     },
@@ -101,19 +100,6 @@
         "kiro",
         "aws",
         "credits",
-        "account",
-        "usage"
-      ],
-      "mode": "view"
-    },
-    {
-      "name": "show-opencode",
-      "title": "Show OpenCode Accounts",
-      "subtitle": "ccswap",
-      "description": "OpenCode accounts with their own usage, limits and reset times",
-      "keywords": [
-        "opencode",
-        "providers",
         "account",
         "usage"
       ],
