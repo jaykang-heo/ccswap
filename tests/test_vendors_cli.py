@@ -382,12 +382,28 @@ def test_usage_check_ignores_tools_that_are_not_installed():
     assert usage_problems(gone, {}) == []
 
 
-def test_run_at_key_without_an_api_key_account_refuses(service, capsys, runner):
+def test_run_at_key_without_any_login_refuses(service, capsys, runner):
     n = len(runner.calls)
     code, _, err = run("muse", ["run", "@key", "--", "--version"], service, capsys)
     assert code != 0
-    assert "refusing to run on the global login" in err
+    assert "refusing to run" in err
     assert len(runner.calls) == n
+
+
+def test_muse_run_at_key_refuses_when_no_login_has_room(
+    service, capsys, monkeypatch, runner, tmp_path
+):
+    from claude_swap.vendors import muse_autoswitch
+
+    add_linked_api_key(
+        service, capsys, monkeypatch, tmp_path, "spare", "SPARE-KEY", "s@x.com", "spare-login"
+    )
+    monkeypatch.setattr(muse_autoswitch, "lane_key", lambda service, settings: None)
+    n = len(runner.calls)
+    code, _, err = run("muse", ["run", "@key", "--", "exec", "hi"], service, capsys)
+    assert code != 0
+    assert "no Muse login has room" in err
+    assert not any(c.env and "META_API_KEY" in c.env for c in runner.calls[n:])
 
 
 def test_muse_run_at_key_uses_the_login_with_most_room(service, capsys, monkeypatch, runner):

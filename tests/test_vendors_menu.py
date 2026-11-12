@@ -352,3 +352,13 @@ def test_menu_rows_never_show_failure_text():
                 assert "—" in text
             else:
                 assert "1,136" in text  # last-good numbers, kept with no label
+
+
+def test_refresh_and_docs_rows_name_the_tool_not_the_last_account():
+    summary = ToolSummary("kiro", "Kiro CLI", installed=True, tool_usage=credits())
+    summary.accounts = [
+        (AccountView(tool="kiro", alias="work", kind="login", registered=True), credits())
+    ]
+    text = labels(section_for(summary, "https://kiro.dev/docs/cli/", NOW))
+    assert "Refresh Kiro CLI usage" in text
+    assert "Kiro CLI documentation…" in text
