@@ -93,9 +93,9 @@ Muse is used in two ways, and each one moves on its own.
   of its gate. `--once` runs one check, `--dry-run` only reports, `--json` prints one event
   per line. A running Muse session keeps the previous login until it is restarted.
 - **Lanes.** `ccswap muse run @key -- ...` runs Muse on the subscription key of the login
-  with the most quota left, for that process only, and changes no global login. When no
-  login has a usable reading and key, it runs on the first registered API-key account as
-  before.
+  with the most quota left, for that process only, and changes no global login. The key
+  comes from that login's own stored file, so no API-key account is needed. When no login
+  has a usable reading and key, it refuses instead of running.
 
 A login is only switched to, or billed by a lane, when ccswap has numbers for it. The engine
 does not switch when it has no reading of the signed-in login.

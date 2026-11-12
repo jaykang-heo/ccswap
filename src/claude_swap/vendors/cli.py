@@ -169,7 +169,7 @@ def _parser(tool: str) -> argparse.ArgumentParser:
             "account",
             metavar="ALIAS|NUM|@key",
             help="@key: what crew lanes run as. Muse: the subscription key of the login with "
-            "the most quota left, else the first registered API-key account",
+            "the most quota left; refuses when none has room",
         )
         run.add_argument(
             "args", nargs=argparse.REMAINDER, help="Arguments after `--` go to the tool"
@@ -352,13 +352,17 @@ def _dispatch(tool: str, args, service: VendorService, as_json: bool) -> int:
             from claude_swap.vendors.muse_autoswitch import lane_key
 
             picked = lane_key(service, _autoswitch_settings())
-            if picked is not None:
-                quota, key = picked
-                print(f"ccswap: Muse lane key from '{quota.alias}'", file=sys.stderr)
-                spec = adapter.key_launch_spec(key, extra)  # type: ignore[attr-defined]
-                return adapter.runner.run_interactive(
-                    spec.argv, env=spec.env_overlay, unset_env=spec.unset_env
+            if picked is None:
+                raise VendorError(
+                    "no Muse login has room (each is at 100%, or has no reading or no "
+                    "subscription key); refusing to run"
                 )
+            quota, key = picked
+            print(f"ccswap: Muse lane key from '{quota.alias}'", file=sys.stderr)
+            spec = adapter.key_launch_spec(key, extra)  # type: ignore[attr-defined]
+            return adapter.runner.run_interactive(
+                spec.argv, env=spec.env_overlay, unset_env=spec.unset_env
+            )
         if account == "@key":
             keys = [r.alias for r in service.store.records(tool) if r.kind == "api-key"]
             if not keys:
