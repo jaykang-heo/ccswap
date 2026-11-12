@@ -886,10 +886,16 @@ async function cmdVendorTool(tool: string, argv: string[], originalArgv: string[
     const before = separator < 0 ? rest : rest.slice(0, separator);
     const childArgs = separator < 0 ? [] : rest.slice(separator + 1);
     const [target] = positionals(before);
-    if (!target) return fail(`Usage: ccswap ${tool} run ALIAS [-- ...]`, asJson, 2);
-    if (tool === "opencode") return fail("not possible (opencode run)", asJson, 3);
-    const res = vendorRun(root, tool, target, childArgs);
-    return settleSyncStdout(res, originalArgv, asJson);
+    if (tool !== "muse" || !target || before.length !== 1 || (separator < 0 && rest.length !== 1)) {
+      const fb = runPythonFallback(originalArgv);
+      return fb.status ?? 1;
+    }
+    const res = await vendorRun(root, tool, target, childArgs);
+    if (!res.handled) {
+      const fb = runPythonFallback(originalArgv);
+      return fb.status ?? 1;
+    }
+    return settle(res, originalArgv, asJson);
   }
   const fb = runPythonFallback(originalArgv);
   return fb.status ?? 1;

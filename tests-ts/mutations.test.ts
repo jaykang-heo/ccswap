@@ -42,6 +42,10 @@ for (const key of [
   "PATH",
   "CCSWAP_SESSION",
   "CCSWAP_SESSION_SHELL",
+  "META_API_KEY",
+  "KIRO_API_KEY",
+  "MUSE_CHILD",
+  "CHILD_LOG",
 ]) {
   savedEnv[key] = process.env[key];
 }
@@ -409,6 +413,26 @@ describe("map / unmap", () => {
 });
 
 describe("vendor add / remove", () => {
+  it("runs Muse with isolated API-key environment and forwarded argv", async () => {
+    const child = path.join(home, "child");
+    fs.writeFileSync(child, `#!/bin/sh\nprintf '%s\\n' "$*|$META_API_KEY|$TBH_CREDENTIAL_BACKEND|${"${KIRO_API_KEY-}"}" > "$CHILD_LOG"\nexit 7\n`, { mode: 0o755 });
+    const log = path.join(home, "child.log");
+    process.env["PATH"] = `${home}${path.delimiter}${process.env["PATH"] ?? ""}`;
+    process.env["MUSE_CHILD"] = child;
+    process.env["CHILD_LOG"] = log;
+    process.env["META_API_KEY"] = "ambient";
+    const result = await runTs(["muse", "run", "work", "--", "exec", "hi"]);
+    expect(result.code).toBe(7);
+    expect(fs.readFileSync(log, "utf8").trim()).toBe("exec hi|fake-secret-for-fixture-only|file|");
+  });
+
+  it("falls back to Python with the original argv when Muse cannot spawn", async () => {
+    process.env["MUSE_CHILD"] = path.join(home, "missing-muse");
+    const result = await runTs(["muse", "run", "work", "--", "exec", "hi"]);
+    expect(result.code).toBe(3);
+    expect(stubArgv()).toBe("muse run work -- exec hi");
+  });
+
   it("registers an api-key account with a 0600 secret file", () => {
     const res = vendorAdd(root, "muse", "second", { secretStdin: "sk-ant-second-key" });
     expect(res.code).toBe(0);
