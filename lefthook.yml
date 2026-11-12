@@ -1,4 +1,2 @@
-# Thin wrapper: hook commands live in @jstack/standards-ts (standards-ts-v0.1.0).
-# Do not hand-edit; bump the preset tag in package.json to update.
 extends:
   - ./node_modules/@jstack/standards-ts/lefthook.base.yml

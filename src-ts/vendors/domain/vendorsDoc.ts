@@ -4,7 +4,7 @@
  * preserved on disk by Python; TS likewise skips them when reading.
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 const ALIAS_RE = /^[A-Za-z0-9][A-Za-z0-9._@+-]{0,63}$/;
 const SECRET_REF_RE = /^[a-z]+-[0-9a-f]{32}$/;
@@ -12,15 +12,15 @@ const SECRET_REF_RE = /^[a-z]+-[0-9a-f]{32}$/;
 const accountSchema = z
   .object({
     alias: z.string(),
-    kind: z.string().default(""),
+    kind: z.string().default(''),
     provider: z.string().nullable().default(null),
     identity: z.record(z.string(), z.string()).default({}),
-    loginHint: z.string().default(""),
+    loginHint: z.string().default(''),
     secretRef: z
       .string()
       .nullable()
       .default(null)
-      .refine((v) => v === null || SECRET_REF_RE.test(v), { message: "bad secretRef" }),
+      .refine((v) => v === null || SECRET_REF_RE.test(v), { message: 'bad secretRef' }),
   })
   .catchall(z.unknown());
 

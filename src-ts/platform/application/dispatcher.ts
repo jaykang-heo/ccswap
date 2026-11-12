@@ -11,14 +11,14 @@
  * original argv. Output parity is therefore exact on every path.
  */
 
-import { spawnSync } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const VENDOR_TOOLS = new Set(["muse", "kiro"]);
+const VENDOR_TOOLS = new Set(['muse', 'kiro']);
 
 function isHelp(argv: string[]): boolean {
-  return argv.includes("-h") || argv.includes("--help");
+  return argv.includes('-h') || argv.includes('--help');
 }
 
 export function isPorted(argv: string[]): boolean {
@@ -26,15 +26,15 @@ export function isPorted(argv: string[]): boolean {
   if (first === undefined) return false;
   if (isHelp(argv)) return false;
   // Wave 1: read-only commands (except --token-status, which reads the keychain).
-  if (first === "list" || first === "ls") {
-    return !argv.includes("--token-status");
+  if (first === 'list' || first === 'ls') {
+    return !argv.includes('--token-status');
   }
-  if (first === "status") return second === undefined || second === "--json";
+  if (first === 'status') return second === undefined || second === '--json';
   // `statusline` stays in Python: its contract is the themed ANSI render of
   // the stdin snapshot (`statusline.py render()`); the TS data backend lives
   // in `overview/application/collect.ts` for future frontends.
-  if (first === "statusline") return false;
-  if (first === "claude") {
+  if (first === 'statusline') return false;
+  if (first === 'claude') {
     // `claude <verb>` rewrites to the top-level spelling first (Python
     // `claude_argv` parity); port whatever the rewritten argv ports.
     // Unknown verbs return null → Python prints the exit-2 hint.
@@ -42,64 +42,72 @@ export function isPorted(argv: string[]): boolean {
     if (rewritten === null) return false;
     return isPorted(rewritten);
   }
-  if (first === "codex") {
-    if (second === "list" || second === "accounts" || second === "status") return true;
+  if (first === 'codex') {
+    if (second === 'list' || second === 'accounts' || second === 'status') return true;
     // add/remove/switch attempt the file-backed core, falling back internally.
-    if (second === "add" || second === "remove" || second === "switch") return true;
+    if (second === 'add' || second === 'remove' || second === 'switch') return true;
     return false;
   }
-  if (first === "agy") {
-    if (second === "list" || second === "status" || second === "usage") return true;
-    if (second === "remove") return true;
+  if (first === 'agy') {
+    if (second === 'list' || second === 'status' || second === 'usage') return true;
+    if (second === 'remove') return true;
     return false;
   }
-  if (first === "grok") return true; // known tool: explicit unsupported answers
+  if (first === 'grok') return true; // known tool: explicit unsupported answers
   if (VENDOR_TOOLS.has(first)) {
-    if (second === "list" || second === "accounts" || second === "status") return true;
-    if (second === "add" || second === "remove") return true;
-    if (second === "switch" || second === "usage") return true;
-    if (second === "run") return first === "muse";
+    if (second === 'list' || second === 'accounts' || second === 'status') return true;
+    if (second === 'add' || second === 'remove') return true;
+    if (second === 'switch' || second === 'usage') return true;
+    if (second === 'run') return first === 'muse';
     return false;
   }
-  if (first === "vendors" || first === "tools") {
+  if (first === 'vendors' || first === 'tools') {
     const sub = argv[1];
-    if (sub === undefined || sub === "status" || sub === "capabilities") return true;
+    if (sub === undefined || sub === 'status' || sub === 'capabilities') return true;
     // Wave-1 flag spellings (anything else is argparse's exit-2 domain).
-    if (sub === "-h" || sub === "--help" || sub === "--json") return true;
+    if (sub === '-h' || sub === '--help' || sub === '--json') return true;
     return false;
   }
-  if (first === "usage") {
-    if (argv.includes("--token-status")) return false;
+  if (first === 'usage') {
+    if (argv.includes('--token-status')) return false;
     return true; // cached, --refresh, and --check all attempt TS first
   }
-  if (first === "config") {
-    if (second === undefined || second === "list" || second === "get" || second === "path") return true;
+  if (first === 'config') {
+    if (second === undefined || second === 'list' || second === 'get' || second === 'path') return true;
     // set/unset attempt TS; action keys fall back internally.
-    if (second === "set" || second === "unset") return true;
+    if (second === 'set' || second === 'unset') return true;
     return false;
   }
-  if (first === "alias") return true;
-  if (first === "map" || first === "unmap") return true;
-  if (first === "unclaimed") return true;
-  if (first === "export" || first === "--export") return true;
-  if (first === "import" || first === "--import") return true;
-  if (first === "import-usage" || first === "--import-usage") return true;
+  if (first === 'alias') return true;
+  if (first === 'map' || first === 'unmap') return true;
+  if (first === 'unclaimed') return true;
+  if (first === 'export' || first === '--export') return true;
+  if (first === 'import' || first === '--import') return true;
+  if (first === 'import-usage' || first === '--import-usage') return true;
   // Top-level mutating verbs (flag spellings included).
   if (
-    first === "switch" || first === "--switch" || first === "--switch-to" ||
-    first === "--add-account" || first === "add" || first === "add-token" ||
-    first === "--remove-account" || first === "remove" || first === "rm" ||
-    first === "disable" || first === "enable" ||
-    first === "swap" || first === "move"
+    first === 'switch' ||
+    first === '--switch' ||
+    first === '--switch-to' ||
+    first === '--add-account' ||
+    first === 'add' ||
+    first === 'add-token' ||
+    first === '--remove-account' ||
+    first === 'remove' ||
+    first === 'rm' ||
+    first === 'disable' ||
+    first === 'enable' ||
+    first === 'swap' ||
+    first === 'move'
   ) {
-    if (argv.includes("--token-status")) return false;
+    if (argv.includes('--token-status')) return false;
     return true;
   }
   return false;
 }
 
 /** `claude list|ls|usage` shows the Claude roster (`--list --provider claude`). */
-const CLAUDE_LIST_VERBS = new Set(["list", "ls", "usage"]);
+const CLAUDE_LIST_VERBS = new Set(['list', 'ls', 'usage']);
 
 /**
  * Every other established top-level Claude verb passes through unchanged
@@ -107,10 +115,33 @@ const CLAUDE_LIST_VERBS = new Set(["list", "ls", "usage"]);
  * Mirrors `_CLAUDE_VERBS` + `_claude_passthrough()` in `vendors/cli.py`.
  */
 const CLAUDE_PASSTHROUGH = new Set([
-  "status", "add", "add-token", "remove", "rm", "disable", "enable",
-  "relogin", "export", "import", "import-usage", "purge", "upgrade",
-  "update", "tui", "watch", "menubar", "switch", "run", "auto",
-  "config", "map", "unmap", "unclaimed", "alias", "swap", "move",
+  'status',
+  'add',
+  'add-token',
+  'remove',
+  'rm',
+  'disable',
+  'enable',
+  'relogin',
+  'export',
+  'import',
+  'import-usage',
+  'purge',
+  'upgrade',
+  'update',
+  'tui',
+  'watch',
+  'menubar',
+  'switch',
+  'run',
+  'auto',
+  'config',
+  'map',
+  'unmap',
+  'unclaimed',
+  'alias',
+  'swap',
+  'move',
 ]);
 
 /**
@@ -121,8 +152,8 @@ const CLAUDE_PASSTHROUGH = new Set([
 export function claudeRewritten(argv: string[]): string[] | null {
   const [, verb, ...rest] = argv;
   if (verb === undefined) return null;
-  if (CLAUDE_LIST_VERBS.has(verb)) return ["list", "--provider", "claude", ...rest];
-  if (verb.startsWith("-") || CLAUDE_PASSTHROUGH.has(verb)) return [verb, ...rest];
+  if (CLAUDE_LIST_VERBS.has(verb)) return ['list', '--provider', 'claude', ...rest];
+  if (verb.startsWith('-') || CLAUDE_PASSTHROUGH.has(verb)) return [verb, ...rest];
   return null;
 }
 
@@ -132,7 +163,7 @@ export interface FallbackResult {
 }
 
 function repoRoot(): string {
-  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 }
 
 /**
@@ -144,29 +175,29 @@ function repoRoot(): string {
  * Unresolvable interpreters (`ENOENT`) fall through to the next candidate.
  */
 export function runPythonFallback(argv: string[]): FallbackResult {
-  const override = process.env["CCSWAP_PYTHON_CLI"];
+  const override = process.env['CCSWAP_PYTHON_CLI'];
   const candidates: Array<{ command: string; args: string[]; env?: NodeJS.ProcessEnv }> =
-    override !== undefined && override !== ""
+    override !== undefined && override !== ''
       ? [{ command: override, args: argv }]
       : [
           {
-            command: "uv",
-            args: ["run", "--project", repoRoot(), "--no-sync", "python", "-m", "claude_swap", ...argv],
+            command: 'uv',
+            args: ['run', '--project', repoRoot(), '--no-sync', 'python', '-m', 'claude_swap', ...argv],
           },
           {
-            command: "python3",
-            args: ["-m", "claude_swap", ...argv],
-            env: { ...process.env, PYTHONPATH: path.join(repoRoot(), "src") },
+            command: 'python3',
+            args: ['-m', 'claude_swap', ...argv],
+            env: { ...process.env, PYTHONPATH: path.join(repoRoot(), 'src') },
           },
         ];
   let last: FallbackResult = { status: 1, signal: null };
   for (const candidate of candidates) {
     const res = spawnSync(candidate.command, candidate.args, {
-      stdio: "inherit",
+      stdio: 'inherit',
       env: candidate.env ?? process.env,
     });
     const errno = (res.error as NodeJS.ErrnoException | undefined)?.code;
-    if (errno === "ENOENT") continue;
+    if (errno === 'ENOENT') continue;
     last = { status: res.status, signal: res.signal };
     break;
   }

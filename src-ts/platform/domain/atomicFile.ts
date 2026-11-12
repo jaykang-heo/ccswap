@@ -12,10 +12,10 @@
  *   to prove every mutation has a working reverse path.
  */
 
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { randomBytes } from "node:crypto";
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { randomBytes } from 'node:crypto';
 
 export interface ReverseEntry {
   path: string;
@@ -62,7 +62,7 @@ export class ReverseLog {
       }
       const dir = path.dirname(e.path);
       fs.mkdirSync(dir, { recursive: true });
-      const tmp = path.join(dir, `.reverse-${String(process.pid)}-${randomBytes(4).toString("hex")}`);
+      const tmp = path.join(dir, `.reverse-${String(process.pid)}-${randomBytes(4).toString('hex')}`);
       fs.writeFileSync(tmp, e.priorBytes as Buffer);
       if (e.priorMode !== null) {
         try {
@@ -80,7 +80,7 @@ export class ReverseLog {
 export function atomicWriteFile(filePath: string, text: string, mode?: number): void {
   const dir = path.dirname(filePath);
   fs.mkdirSync(dir, { recursive: true });
-  const tmp = path.join(dir, `.tmp-${String(process.pid)}-${randomBytes(6).toString("hex")}`);
+  const tmp = path.join(dir, `.tmp-${String(process.pid)}-${randomBytes(6).toString('hex')}`);
   fs.writeFileSync(tmp, text, { mode: mode ?? 0o644 });
   if (mode !== undefined) {
     try {
@@ -99,7 +99,7 @@ export function atomicWriteJson(filePath: string, value: unknown, mode?: number)
 const LOCK_STALE_MS = 30_000;
 
 function lockDir(root: string): string {
-  return path.join(root, ".lock");
+  return path.join(root, '.lock');
 }
 
 /** Acquire `<root>/.lock` (mkdir is atomic); stale locks are taken over. */
@@ -110,14 +110,14 @@ export function acquireLock(root: string, timeoutMs = 15_000): void {
     try {
       fs.mkdirSync(dir);
       try {
-        fs.writeFileSync(path.join(dir, "pid"), String(process.pid));
+        fs.writeFileSync(path.join(dir, 'pid'), String(process.pid));
       } catch {
         // Informational only.
       }
       return;
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
-      if (code !== "EEXIST") throw err;
+      if (code !== 'EEXIST') throw err;
       let stale = false;
       try {
         const st = fs.statSync(dir);
@@ -174,7 +174,7 @@ export function ensureDir(dir: string, mode = 0o700): void {
 }
 
 export function tmpHomeEnv(home: string): NodeJS.ProcessEnv {
-  return { ...process.env, HOME: home, XDG_DATA_HOME: path.join(home, ".local", "share") };
+  return { ...process.env, HOME: home, XDG_DATA_HOME: path.join(home, '.local', 'share') };
 }
 
 export function systemTmpDir(prefix: string): string {

@@ -5,9 +5,9 @@
  * touched secret files) for the adapter to record.
  */
 
-import { randomBytes } from "node:crypto";
-import { ConfigError, UnsupportedCapability, ValidationError } from "../../platform/domain/errors.js";
-import { validAlias, type VendorAccount, type VendorsDoc } from "./vendorsDoc.js";
+import { randomBytes } from 'node:crypto';
+import { ConfigError, UnsupportedCapability, ValidationError } from '../../platform/domain/errors.js';
+import { validAlias, type VendorAccount, type VendorsDoc } from './vendorsDoc.js';
 
 export interface VendorMutation {
   doc: VendorsDoc;
@@ -17,16 +17,12 @@ export interface VendorMutation {
 }
 
 export function newSecretRef(tool: string): string {
-  const prefix = tool.toLowerCase().replace(/[^a-z]/g, "") || "vendor";
-  return `${prefix}-${randomBytes(16).toString("hex")}`;
+  const prefix = tool.toLowerCase().replace(/[^a-z]/g, '') || 'vendor';
+  return `${prefix}-${randomBytes(16).toString('hex')}`;
 }
 
 /** Provider-aware lookup: an alias may repeat per provider in stored data. */
-export function findVendorIndex(
-  accounts: VendorAccount[],
-  identifier: string,
-  provider?: string,
-): number {
+export function findVendorIndex(accounts: VendorAccount[], identifier: string, provider?: string): number {
   if (/^\d+$/.test(identifier.trim())) {
     const idx = Number(identifier.trim()) - 1;
     if (idx >= 0 && idx < accounts.length) return idx;
@@ -46,14 +42,20 @@ function toolEntry(doc: VendorsDoc, tool: string): { accounts: unknown[]; active
   const entry = doc.tools[tool] as { accounts?: unknown; active?: unknown } | undefined;
   const rawAccounts: unknown[] = entry !== undefined && Array.isArray(entry.accounts) ? entry.accounts : [];
   const accounts = [...rawAccounts];
-  const active = entry !== undefined && typeof entry.active === "string" ? entry.active : null;
+  const active = entry !== undefined && typeof entry.active === 'string' ? entry.active : null;
   return { accounts, active };
 }
 
 export function vendorAddMutation(
   doc: VendorsDoc,
   tool: string,
-  account: { alias: string; kind: string; provider?: string | null; identity?: Record<string, string>; loginHint?: string },
+  account: {
+    alias: string;
+    kind: string;
+    provider?: string | null;
+    identity?: Record<string, string>;
+    loginHint?: string;
+  },
   secret: string | null,
 ): VendorMutation {
   if (!validAlias(account.alias)) {
@@ -61,14 +63,14 @@ export function vendorAddMutation(
   }
   const entry = toolEntry(doc, tool);
   const existing = (entry.accounts as Array<Record<string, unknown>>).find(
-    (a) => a["alias"] === account.alias,
+    (a) => a['alias'] === account.alias,
   );
   if (existing) {
     throw new ConfigError(`'${account.alias}' is already registered for ${tool}`);
   }
-  const needsSecret = account.kind === "api-key";
+  const needsSecret = account.kind === 'api-key';
   if (needsSecret && !secret) {
-    throw new ConfigError("an API-key account needs a secret (stdin or prompt)");
+    throw new ConfigError('an API-key account needs a secret (stdin or prompt)');
   }
   const secretRef = needsSecret && secret ? newSecretRef(tool) : null;
   const record: Record<string, unknown> = {
@@ -76,7 +78,7 @@ export function vendorAddMutation(
     kind: account.kind,
     provider: account.provider ?? null,
     identity: account.identity ?? {},
-    loginHint: account.loginHint ?? "",
+    loginHint: account.loginHint ?? '',
     secretRef,
   };
   return {
@@ -103,7 +105,7 @@ export function vendorRemoveMutation(
   const removed = parsed[idx] as VendorAccount;
   const raw = entry.accounts as Array<Record<string, unknown>>;
   const rawIdx = raw.findIndex(
-    (a) => a["alias"] === removed.alias && (provider === undefined || (a["provider"] ?? null) === provider),
+    (a) => a['alias'] === removed.alias && (provider === undefined || (a['provider'] ?? null) === provider),
   );
   const next = [...entry.accounts];
   if (rawIdx >= 0) next.splice(rawIdx, 1);
@@ -128,15 +130,15 @@ export function vendorSetActiveMutation(doc: VendorsDoc, tool: string, alias: st
 }
 
 /** Exit-3 matrix: which switch/run shapes the product cannot do. */
-export function switchSupport(tool: string, kind: string): "file" | "interactive" | "unsupported" {
+export function switchSupport(tool: string, kind: string): 'file' | 'interactive' | 'unsupported' {
   void kind;
-  if (tool === "muse") return "file"; // API-key accounts via local files; browser sessions need login
-  if (tool === "kiro") return "interactive"; // guarded interactive logout/login
+  if (tool === 'muse') return 'file'; // API-key accounts via local files; browser sessions need login
+  if (tool === 'kiro') return 'interactive'; // guarded interactive logout/login
   throw new UnsupportedCapability(`the product cannot do it (${tool} switch)`);
 }
 
-export function runSupport(tool: string, kind: string): "file" | "unsupported" {
+export function runSupport(tool: string, kind: string): 'file' | 'unsupported' {
   void kind;
-  if (tool === "muse" || tool === "kiro") return "file"; // API-key accounts only
+  if (tool === 'muse' || tool === 'kiro') return 'file'; // API-key accounts only
   throw new UnsupportedCapability(`not possible (${tool} run)`);
 }

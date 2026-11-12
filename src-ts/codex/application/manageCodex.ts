@@ -4,13 +4,13 @@
  * `redeem-reset` stay in Python (`handled: false` with the reason).
  */
 
-import fs from "node:fs";
-import { ReverseLog } from "../../platform/domain/atomicFile.js";
-import { ConfigError, ValidationError } from "../../platform/domain/errors.js";
-import { nextFreeSlot } from "../../platform/domain/identifiers.js";
-import { backupRoot } from "../../platform/domain/paths.js";
-import { failed, ok, unhandled, type UseCaseResult } from "../../accounts/application/manageAccounts.js";
-import { codexIdentity, parseCodexAuth } from "../domain/codexRoster.js";
+import fs from 'node:fs';
+import { ReverseLog } from '../../platform/domain/atomicFile.js';
+import { ConfigError, ValidationError } from '../../platform/domain/errors.js';
+import { nextFreeSlot } from '../../platform/domain/identifiers.js';
+import { backupRoot } from '../../platform/domain/paths.js';
+import { failed, ok, unhandled, type UseCaseResult } from '../../accounts/application/manageAccounts.js';
+import { codexIdentity, parseCodexAuth } from '../domain/codexRoster.js';
 import {
   codexBackupAuthPath,
   codexLiveAuthPath,
@@ -18,16 +18,13 @@ import {
   readCodexSequence,
   readLiveCodexAuth,
   updateCodex,
-} from "../adapters/codexStore.js";
+} from '../adapters/codexStore.js';
 
 function nowStamp(): string {
-  return new Date().toISOString().replace(/\.\d+Z$/, "Z");
+  return new Date().toISOString().replace(/\.\d+Z$/, 'Z');
 }
 
-function resolveCodexSlot(
-  seq: ReturnType<typeof readCodexSequence>,
-  identifier: string,
-): string {
+function resolveCodexSlot(seq: ReturnType<typeof readCodexSequence>, identifier: string): string {
   const id = identifier.trim();
   if (/^\d+$/.test(id)) {
     const s = String(Number(id));
@@ -54,23 +51,21 @@ export function codexAdd(root: string = backupRoot(), slot?: number, assumeYes =
     try {
       live = JSON.parse(liveText) as unknown;
     } catch {
-      throw new ConfigError("Codex auth.json is not valid JSON");
+      throw new ConfigError('Codex auth.json is not valid JSON');
     }
     const auth = parseCodexAuth(live);
-    if (!auth) throw new ConfigError("Codex auth.json is unreadable");
+    if (!auth) throw new ConfigError('Codex auth.json is unreadable');
     const { email, accountId, mode } = codexIdentity(auth);
-    if (!email) throw new ValidationError("Codex auth.json does not contain a usable account identity");
-    if (codexSlotHasSessions(root, "*")) {
-      return unhandled("Codex session profiles exist; Python owns the custody check");
+    if (!email) throw new ValidationError('Codex auth.json does not contain a usable account identity');
+    if (codexSlotHasSessions(root, '*')) {
+      return unhandled('Codex session profiles exist; Python owns the custody check');
     }
     const reverse = new ReverseLog();
     const detail = updateCodex(root, reverse, (seq) => {
-      const existing = Object.entries(seq.accounts).find(
-        ([, rec]) => rec.email === email,
-      )?.[0] ?? null;
+      const existing = Object.entries(seq.accounts).find(([, rec]) => rec.email === email)?.[0] ?? null;
       let number: string;
       if (slot !== undefined) {
-        if (slot < 1) throw new ValidationError("Codex account slot must be a positive integer");
+        if (slot < 1) throw new ValidationError('Codex account slot must be a positive integer');
         number = String(slot);
       } else {
         number = existing ?? String(nextFreeSlot(new Set(Object.keys(seq.accounts).map(Number))));
@@ -83,7 +78,7 @@ export function codexAdd(root: string = backupRoot(), slot?: number, assumeYes =
         throw new ConfigError(`Codex session home kept for slot ${number}; manual disposition required`);
       }
       if (readLiveCodexAuth() !== liveText) {
-        throw new ConfigError("Codex login changed; retry");
+        throw new ConfigError('Codex login changed; retry');
       }
       reverse.record(codexBackupAuthPath(root, number));
       fs.writeFileSync(codexBackupAuthPath(root, number), `${JSON.stringify(live, null, 2)}\n`);
@@ -91,15 +86,26 @@ export function codexAdd(root: string = backupRoot(), slot?: number, assumeYes =
         ...seq,
         accounts: {
           ...seq.accounts,
-          [number]: { email, alias: occupant?.alias, disabled: false, accountId, authMode: mode, added: occupant !== undefined ? nowStamp() : nowStamp() },
+          [number]: {
+            email,
+            alias: occupant?.alias,
+            disabled: false,
+            accountId,
+            authMode: mode,
+            added: occupant !== undefined ? nowStamp() : nowStamp(),
+          },
         },
-        sequence: seq.sequence.includes(Number(number)) ? [...seq.sequence] : [...seq.sequence, Number(number)].sort((a, b) => a - b),
+        sequence: seq.sequence.includes(Number(number))
+          ? [...seq.sequence]
+          : [...seq.sequence, Number(number)].sort((a, b) => a - b),
         activeAccountNumber: Number(number),
       };
       return { seq: next, result: `Added Codex Account ${number}: ${email}` };
     });
-    if (detail.startsWith("OVERWRITE_PROMPT:")) {
-      return unhandled(`slot ${detail.slice("OVERWRITE_PROMPT:".length)} is occupied; confirmation prompt needed`);
+    if (detail.startsWith('OVERWRITE_PROMPT:')) {
+      return unhandled(
+        `slot ${detail.slice('OVERWRITE_PROMPT:'.length)} is occupied; confirmation prompt needed`,
+      );
     }
     return ok(detail, undefined, reverse);
   } catch (err) {
@@ -107,9 +113,13 @@ export function codexAdd(root: string = backupRoot(), slot?: number, assumeYes =
   }
 }
 
-export function codexRemove(root: string = backupRoot(), identifier: string, assumeYes = false): UseCaseResult {
+export function codexRemove(
+  root: string = backupRoot(),
+  identifier: string,
+  assumeYes = false,
+): UseCaseResult {
   try {
-    if (!assumeYes) return unhandled("codex remove without --yes needs a confirmation prompt");
+    if (!assumeYes) return unhandled('codex remove without --yes needs a confirmation prompt');
     const reverse = new ReverseLog();
     const detail = updateCodex(root, reverse, (seq) => {
       const number = resolveCodexSlot(seq, identifier);
@@ -127,7 +137,7 @@ export function codexRemove(root: string = backupRoot(), identifier: string, ass
       } catch {
         // Absent backup is fine.
       }
-      return { seq: next, result: `Removed Codex Account ${number} (${rec?.email ?? "?"})` };
+      return { seq: next, result: `Removed Codex Account ${number} (${rec?.email ?? '?'})` };
     });
     return ok(detail, undefined, reverse);
   } catch (err) {
@@ -144,10 +154,15 @@ export function codexSwitch(
     const seq = readCodexSequence(root);
     void seq;
     if (identifier === null && opts.strategy) {
-      return unhandled("bare codex switch --strategy ranks live quota in Python");
+      return unhandled('bare codex switch --strategy ranks live quota in Python');
     }
     if (identifier === null) {
-      return { code: 2, message: "codex switch needs an account or --strategy", reverse: new ReverseLog(), handled: true };
+      return {
+        code: 2,
+        message: 'codex switch needs an account or --strategy',
+        reverse: new ReverseLog(),
+        handled: true,
+      };
     }
     // Session-custody recheck lives in Python; refuse when markers exist.
     const reverse = new ReverseLog();
@@ -158,9 +173,9 @@ export function codexSwitch(
       }
       let stored: string;
       try {
-        stored = fs.readFileSync(codexBackupAuthPath(root, number), "utf-8");
+        stored = fs.readFileSync(codexBackupAuthPath(root, number), 'utf-8');
       } catch {
-        throw new ConfigError("stored Codex auth.json is missing");
+        throw new ConfigError('stored Codex auth.json is missing');
       }
       const livePath = codexLiveAuthPath();
       reverse.record(livePath);
@@ -168,7 +183,7 @@ export function codexSwitch(
       const next = { ...locked, activeAccountNumber: Number(number) };
       return { seq: next, result: `Switched Codex to Account ${number}` };
     });
-    return ok(detail, { schemaVersion: 1, provider: "codex" }, reverse);
+    return ok(detail, { schemaVersion: 1, provider: 'codex' }, reverse);
   } catch (err) {
     if (err instanceof ConfigError && /custody|retry in Python/.test(err.message)) {
       return unhandled(err.message);

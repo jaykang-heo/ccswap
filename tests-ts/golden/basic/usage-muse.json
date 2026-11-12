@@ -14,10 +14,7 @@
         "envKeyPresent": false,
         "storedCredential": false,
         "precedence": "META_API_KEY > stored API key > stored browser session",
-        "methods": [
-          "browser",
-          "api-key"
-        ],
+        "methods": ["browser", "api-key"],
         "identityExposed": false
       },
       "usage": {

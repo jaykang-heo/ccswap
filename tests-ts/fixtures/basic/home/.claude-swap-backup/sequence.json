@@ -1,1 +1,22 @@
-{"accounts":{"1":{"added":"2026-01-01T00:00:00Z","alias":"dev","email":"alice@example.com","organizationName":"Acme","organizationUuid":"org-1","uuid":"uuid-1"},"2":{"added":"2026-01-02T00:00:00Z","email":"bob@example.com","organizationName":"","organizationUuid":"","uuid":"uuid-2"}},"activeAccountNumber":1,"lastUpdated":"2026-01-02T00:00:00Z","sequence":[1,2]}
+{
+  "accounts": {
+    "1": {
+      "added": "2026-01-01T00:00:00Z",
+      "alias": "dev",
+      "email": "alice@example.com",
+      "organizationName": "Acme",
+      "organizationUuid": "org-1",
+      "uuid": "uuid-1"
+    },
+    "2": {
+      "added": "2026-01-02T00:00:00Z",
+      "email": "bob@example.com",
+      "organizationName": "",
+      "organizationUuid": "",
+      "uuid": "uuid-2"
+    }
+  },
+  "activeAccountNumber": 1,
+  "lastUpdated": "2026-01-02T00:00:00Z",
+  "sequence": [1, 2]
+}

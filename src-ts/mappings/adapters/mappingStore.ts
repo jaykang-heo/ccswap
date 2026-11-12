@@ -1,14 +1,14 @@
 /** Locked mapping store: reads/writes `<backup>/mappings.json` with reverse. */
 
-import fs from "node:fs";
-import path from "node:path";
-import { ReverseLog, withFileLock } from "../../platform/domain/atomicFile.js";
-import { readJsonFile } from "../../platform/domain/jsonFile.js";
-import { backupRoot } from "../../platform/domain/paths.js";
-import { type MappingsDoc, mappingsDocSchema } from "../domain/mappingDoc.js";
+import fs from 'node:fs';
+import path from 'node:path';
+import { ReverseLog, withFileLock } from '../../platform/domain/atomicFile.js';
+import { readJsonFile } from '../../platform/domain/jsonFile.js';
+import { backupRoot } from '../../platform/domain/paths.js';
+import { type MappingsDoc, mappingsDocSchema } from '../domain/mappingDoc.js';
 
 export function mappingsPath(root: string = backupRoot()): string {
-  return path.join(root, "mappings.json");
+  return path.join(root, 'mappings.json');
 }
 
 export function loadMappings(root: string = backupRoot()): MappingsDoc {

@@ -5,11 +5,11 @@
  * product and stay in Python; remove is local file bookkeeping (TS).
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 export const agyAccountRecordSchema = z
   .object({
-    email: z.string().default("unknown"),
+    email: z.string().default('unknown'),
     alias: z.string().optional(),
   })
   .catchall(z.unknown());

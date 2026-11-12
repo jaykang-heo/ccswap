@@ -4,28 +4,22 @@
  * `_resolve_account_identifier` family (`switcher.py`, `codex.py`, `agy.py`).
  */
 
-import { AccountNotFoundError, ValidationError } from "./errors.js";
+import { AccountNotFoundError, ValidationError } from './errors.js';
 
 const ALIAS_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 
 /** Lowercase and validate; throws ValidationError on invalid (Python parity). */
 export function normalizeAlias(name: string): string {
   const normalized = name.trim().toLowerCase();
-  if (normalized === "") throw new ValidationError("alias cannot be empty");
+  if (normalized === '') throw new ValidationError('alias cannot be empty');
   if (/^\d+$/.test(normalized)) {
-    throw new ValidationError(
-      `alias '${name}' cannot be purely numeric (reserved for slot numbers)`,
-    );
+    throw new ValidationError(`alias '${name}' cannot be purely numeric (reserved for slot numbers)`);
   }
-  if (normalized.startsWith("-")) {
-    throw new ValidationError(
-      `alias '${name}' cannot start with '-' (would be read as a command flag)`,
-    );
+  if (normalized.startsWith('-')) {
+    throw new ValidationError(`alias '${name}' cannot start with '-' (would be read as a command flag)`);
   }
   if (!ALIAS_RE.test(normalized)) {
-    throw new ValidationError(
-      `alias '${name}' may only contain letters, digits, '-', '_', and '.'`,
-    );
+    throw new ValidationError(`alias '${name}' may only contain letters, digits, '-', '_', and '.'`);
   }
   return normalized;
 }
@@ -42,10 +36,7 @@ export interface ClaudeRecordLike {
  *   matching session-mode `resolve_account`; the interactive prompt of
  *   `remove_account` stays in Python).
  */
-export function resolveClaudeSlot(
-  accounts: Record<string, ClaudeRecordLike>,
-  identifier: string,
-): string {
+export function resolveClaudeSlot(accounts: Record<string, ClaudeRecordLike>, identifier: string): string {
   const id = identifier.trim();
   if (/^\d+$/.test(id)) {
     const slot = String(Number(id));
@@ -61,9 +52,7 @@ export function resolveClaudeSlot(
     .map(([slot]) => slot);
   if (emailHits.length === 1) return emailHits[0] as string;
   if (emailHits.length > 1) {
-    throw new ValidationError(
-      `Multiple accounts found for '${identifier}': ${(emailHits).join(", ")}`,
-    );
+    throw new ValidationError(`Multiple accounts found for '${identifier}': ${emailHits.join(', ')}`);
   }
   throw new AccountNotFoundError(`No account found with identifier: ${identifier}`);
 }

@@ -1,15 +1,15 @@
 /** Read-only usage reads: last-good cached rows, no live refresh. */
 
-import path from "node:path";
-import { readJsonFile } from "../../platform/domain/jsonFile.js";
-import { backupRoot } from "../../platform/domain/paths.js";
+import path from 'node:path';
+import { readJsonFile } from '../../platform/domain/jsonFile.js';
+import { backupRoot } from '../../platform/domain/paths.js';
 import {
   type ClaudeUsageTable,
   claudeUsageSchema,
   type VendorUsageCache,
   type VendorUsageResult,
   vendorUsageCacheSchema,
-} from "../domain/usageCache.js";
+} from '../domain/usageCache.js';
 
 export interface ClaudeSlotUsage {
   slot: string;
@@ -20,7 +20,7 @@ export interface ClaudeSlotUsage {
 }
 
 export function loadClaudeUsage(root: string = backupRoot()): ClaudeSlotUsage[] {
-  const raw = readJsonFile(path.join(root, "cache", "usage.json"));
+  const raw = readJsonFile(path.join(root, 'cache', 'usage.json'));
   let table: ClaudeUsageTable | null = null;
   try {
     table = raw === null ? null : claudeUsageSchema.parse(raw);
@@ -38,7 +38,7 @@ export function loadClaudeUsage(root: string = backupRoot()): ClaudeSlotUsage[] 
 }
 
 export function loadVendorUsage(root: string = backupRoot()): VendorUsageCache | null {
-  const raw = readJsonFile(path.join(root, "vendors", "usage.json"));
+  const raw = readJsonFile(path.join(root, 'vendors', 'usage.json'));
   if (raw === null) return null;
   try {
     return vendorUsageCacheSchema.parse(raw);

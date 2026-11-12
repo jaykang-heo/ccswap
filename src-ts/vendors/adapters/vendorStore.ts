@@ -1,15 +1,15 @@
 /** Vendor store adapter: metadata reads only (secrets are never read). */
 
-import { execFileSync } from "node:child_process";
-import path from "node:path";
-import { readJsonFile } from "../../platform/domain/jsonFile.js";
-import { backupRoot } from "../../platform/domain/paths.js";
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { readJsonFile } from '../../platform/domain/jsonFile.js';
+import { backupRoot } from '../../platform/domain/paths.js';
 import {
   parseVendorAccounts,
   type VendorAccount,
   type VendorsDoc,
   vendorsDocSchema,
-} from "../domain/vendorsDoc.js";
+} from '../domain/vendorsDoc.js';
 
 export interface VendorsLoad {
   doc: VendorsDoc | null;
@@ -17,7 +17,7 @@ export interface VendorsLoad {
 }
 
 export function loadVendorsDoc(root: string = backupRoot()): VendorsLoad {
-  const raw = readJsonFile(path.join(root, "vendors", "vendors.json"));
+  const raw = readJsonFile(path.join(root, 'vendors', 'vendors.json'));
   if (raw === null) return { doc: null, unreadable: true };
   try {
     const doc = vendorsDocSchema.parse(raw);
@@ -44,8 +44,8 @@ export interface BinaryProbe {
 }
 
 const VERSION_ARGV: Record<string, string[]> = {
-  muse: ["muse", "--version"],
-  kiro: ["kiro-cli", "--version"],
+  muse: ['muse', '--version'],
+  kiro: ['kiro-cli', '--version'],
 };
 
 /** Binary each vendor tool probes (Python parity: `ToolAdapter.binary`). */
@@ -55,13 +55,13 @@ export function probeBinaryFor(tool: string): string {
 
 /** Local read: is the vendor CLI on PATH and what does it report? */
 export function probeBinary(tool: string, timeoutMs = 5000): BinaryProbe {
-  const [binary, ...rest] = VERSION_ARGV[tool] ?? [tool, "--version"];
-  const argv = rest.length > 0 ? rest : ["--version"];
+  const [binary, ...rest] = VERSION_ARGV[tool] ?? [tool, '--version'];
+  const argv = rest.length > 0 ? rest : ['--version'];
   try {
     const out = execFileSync(binary as string, argv, {
       timeout: timeoutMs,
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "pipe"],
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
     }).trim();
     return { installed: true, version: parseVersion(out) };
   } catch {

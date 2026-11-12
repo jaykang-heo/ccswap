@@ -5,19 +5,19 @@
  * named by alias (`<tool>-<32hex>.secret`, Python parity).
  */
 
-import fs from "node:fs";
-import path from "node:path";
-import { ReverseLog, withFileLock } from "../../platform/domain/atomicFile.js";
-import { readJsonFile } from "../../platform/domain/jsonFile.js";
-import { backupRoot } from "../../platform/domain/paths.js";
-import { type VendorsDoc, vendorsDocSchema } from "../domain/vendorsDoc.js";
+import fs from 'node:fs';
+import path from 'node:path';
+import { ReverseLog, withFileLock } from '../../platform/domain/atomicFile.js';
+import { readJsonFile } from '../../platform/domain/jsonFile.js';
+import { backupRoot } from '../../platform/domain/paths.js';
+import { type VendorsDoc, vendorsDocSchema } from '../domain/vendorsDoc.js';
 
 export function vendorsFile(root: string = backupRoot()): string {
-  return path.join(root, "vendors", "vendors.json");
+  return path.join(root, 'vendors', 'vendors.json');
 }
 
 export function secretsDir(root: string = backupRoot()): string {
-  return path.join(root, "vendors", "secrets");
+  return path.join(root, 'vendors', 'secrets');
 }
 
 export function secretPath(root: string, ref: string): string {
@@ -26,9 +26,9 @@ export function secretPath(root: string, ref: string): string {
 
 export function loadVendorsDocOrThrow(root: string): VendorsDoc {
   const raw = readJsonFile(vendorsFile(root));
-  if (raw === null) throw new Error("Vendor account data is unreadable");
+  if (raw === null) throw new Error('Vendor account data is unreadable');
   const doc = vendorsDocSchema.parse(raw);
-  if (doc.schemaVersion > 1) throw new Error("Vendor account data is unreadable");
+  if (doc.schemaVersion > 1) throw new Error('Vendor account data is unreadable');
   return doc;
 }
 
@@ -64,7 +64,7 @@ export function writeSecretFile(root: string, reverse: ReverseLog, ref: string, 
   }
   const file = secretPath(root, ref);
   reverse.record(file);
-  fs.writeFileSync(file, secret.endsWith("\n") ? secret : `${secret}\n`, { mode: 0o600 });
+  fs.writeFileSync(file, secret.endsWith('\n') ? secret : `${secret}\n`, { mode: 0o600 });
   try {
     fs.chmodSync(file, 0o600);
   } catch {
@@ -92,7 +92,7 @@ export function readSecretFile(root: string, ref: string | null): string | null 
   try {
     const file = secretPath(root, ref);
     if (fs.lstatSync(file).isSymbolicLink()) return null;
-    return fs.readFileSync(file, "utf-8").trim();
+    return fs.readFileSync(file, 'utf-8').trim();
   } catch {
     return null;
   }

@@ -15,21 +15,21 @@
  * without --yes/--force), or the browser OAuth flow (relogin).
  */
 
-import fs from "node:fs";
-import path from "node:path";
-import { ReverseLog, withFileLock } from "../../platform/domain/atomicFile.js";
-import { readJsonFile, readTextFile } from "../../platform/domain/jsonFile.js";
+import fs from 'node:fs';
+import path from 'node:path';
+import { ReverseLog, withFileLock } from '../../platform/domain/atomicFile.js';
+import { readJsonFile, readTextFile } from '../../platform/domain/jsonFile.js';
 import {
   AccountNotFoundError,
   CcswapError,
   ConfigError,
   ValidationError,
-} from "../../platform/domain/errors.js";
-import { nextFreeSlot, normalizeAlias } from "../../platform/domain/identifiers.js";
-import { backupRoot, claudeConfigHome } from "../../platform/domain/paths.js";
-import type { ClaudeSequence } from "../domain/sequence.js";
-import { claudeSequenceSchema } from "../domain/sequence.js";
-import { loadClaudeUsage } from "../../usage/application/readUsage.js";
+} from '../../platform/domain/errors.js';
+import { nextFreeSlot, normalizeAlias } from '../../platform/domain/identifiers.js';
+import { backupRoot, claudeConfigHome } from '../../platform/domain/paths.js';
+import type { ClaudeSequence } from '../domain/sequence.js';
+import { claudeSequenceSchema } from '../domain/sequence.js';
+import { loadClaudeUsage } from '../../usage/application/readUsage.js';
 import {
   moveMutation,
   removeMutation,
@@ -37,8 +37,8 @@ import {
   setDisabledMutation,
   swapMutation,
   unsetAliasMutation,
-} from "../domain/mutations.js";
-import { liveIdentity } from "../adapters/liveIdentity.js";
+} from '../domain/mutations.js';
+import { liveIdentity } from '../adapters/liveIdentity.js';
 import {
   backupConfigPath,
   backupCredentialPath,
@@ -51,12 +51,9 @@ import {
   readSlotMaterial,
   swapSlotMaterials,
   writeSlotMaterial,
-} from "../adapters/liveCredentials.js";
-import { loadClaudeRoster } from "../adapters/roster.js";
-import {
-  reverseUnlink,
-  updateClaudeSequence,
-} from "../adapters/rosterStore.js";
+} from '../adapters/liveCredentials.js';
+import { loadClaudeRoster } from '../adapters/roster.js';
+import { reverseUnlink, updateClaudeSequence } from '../adapters/rosterStore.js';
 
 export interface UseCaseResult {
   code: number;
@@ -68,11 +65,7 @@ export interface UseCaseResult {
   fallbackReason?: string;
 }
 
-export function ok(
-  message: string,
-  payload?: Record<string, unknown>,
-  reverse?: ReverseLog,
-): UseCaseResult {
+export function ok(message: string, payload?: Record<string, unknown>, reverse?: ReverseLog): UseCaseResult {
   return { code: 0, message, payload, reverse: reverse ?? new ReverseLog(), handled: true };
 }
 
@@ -104,8 +97,8 @@ function nowIso(): string {
 
 function sessionShellGuard(): void {
   // Python parity: mutating commands refuse inside a session-mode shell.
-  if (process.env["CCSWAP_SESSION"] === "1" || process.env["CCSWAP_SESSION_SHELL"] === "1") {
-    throw new ConfigError("Refusing: this command cannot run inside a session-mode shell");
+  if (process.env['CCSWAP_SESSION'] === '1' || process.env['CCSWAP_SESSION_SHELL'] === '1') {
+    throw new ConfigError('Refusing: this command cannot run inside a session-mode shell');
   }
 }
 
@@ -159,10 +152,10 @@ export function removeAccount(root: string, identifier: string, assumeYes: boole
   try {
     sessionShellGuard();
     if (!assumeYes) {
-      return unhandled("remove without --yes needs an interactive confirmation prompt");
+      return unhandled('remove without --yes needs an interactive confirmation prompt');
     }
     const reverse = new ReverseLog();
-    let removed = { email: "", organizationUuid: "", wasActive: false, slot: "" };
+    let removed = { email: '', organizationUuid: '', wasActive: false, slot: '' };
     const out = updateClaudeSequence(root, reverse, (seq) => {
       const r = removeMutation(seq, identifier, nowIso());
       const slot = slotOf(seq, identifier);
@@ -176,29 +169,24 @@ export function removeAccount(root: string, identifier: string, assumeYes: boole
     return ok(out.note, undefined, reverse);
   } catch (err) {
     if (err instanceof ValidationError && /Multiple accounts/.test(err.message)) {
-      return unhandled("ambiguous email needs the interactive slot prompt");
+      return unhandled('ambiguous email needs the interactive slot prompt');
     }
     return failed(err);
   }
 }
 
-export function pruneMapping(
-  root: string,
-  reverse: ReverseLog,
-  email: string,
-  orgUuid: string,
-): number {
-  const file = path.join(root, "mappings.json");
+export function pruneMapping(root: string, reverse: ReverseLog, email: string, orgUuid: string): number {
+  const file = path.join(root, 'mappings.json');
   let doc: { mappings?: Record<string, { email?: string; organizationUuid?: string }> };
   try {
-    doc = JSON.parse(fs.readFileSync(file, "utf-8")) as typeof doc;
+    doc = JSON.parse(fs.readFileSync(file, 'utf-8')) as typeof doc;
   } catch {
     return 0;
   }
   const mappings = doc.mappings;
-  if (!mappings || typeof mappings !== "object") return 0;
+  if (!mappings || typeof mappings !== 'object') return 0;
   const prunedKeys = Object.entries(mappings)
-    .filter(([, entry]) => entry.email === email && (entry.organizationUuid ?? "") === orgUuid)
+    .filter(([, entry]) => entry.email === email && (entry.organizationUuid ?? '') === orgUuid)
     .map(([dir]) => dir);
   if (prunedKeys.length === 0) return 0;
   const kept: typeof mappings = {};
@@ -244,7 +232,7 @@ export function swapAccounts(root: string, first: string, second: string): UseCa
   try {
     sessionShellGuard();
     if (hasLiveSessionProfile(root)) {
-      return unhandled("session-mode profile present; Python owns the adoption/refusal dance");
+      return unhandled('session-mode profile present; Python owns the adoption/refusal dance');
     }
     const reverse = new ReverseLog();
     const out = updateClaudeSequence(root, reverse, (seq) => {
@@ -252,8 +240,8 @@ export function swapAccounts(root: string, first: string, second: string): UseCa
       // Cross-write the file backups so credentials follow the account
       // (Python swap parity); every path is reverse-recorded first.
       // Keychain entries and session dirs stay in Python (see module header).
-      const emailA = seq.accounts[r.slotA]?.email ?? "";
-      const emailB = seq.accounts[r.slotB]?.email ?? "";
+      const emailA = seq.accounts[r.slotA]?.email ?? '';
+      const emailB = seq.accounts[r.slotB]?.email ?? '';
       const matA = readSlotMaterial(root, r.slotA, emailA);
       const matB = readSlotMaterial(root, r.slotB, emailB);
       swapSlotMaterials(root, reverse, r.slotA, emailA, matA, r.slotB, emailB, matB);
@@ -269,7 +257,7 @@ export function moveAccount(root: string, identifier: string, target: string): U
   try {
     sessionShellGuard();
     if (hasLiveSessionProfile(root)) {
-      return unhandled("session-mode profile present; Python owns the adoption/refusal dance");
+      return unhandled('session-mode profile present; Python owns the adoption/refusal dance');
     }
     const reverse = new ReverseLog();
     const out = updateClaudeSequence(root, reverse, (seq) => {
@@ -277,15 +265,15 @@ export function moveAccount(root: string, identifier: string, target: string): U
       const targetSlot = String(r.target);
       if (r.swapped) {
         // Occupied target: the same cross-write as a swap.
-        const emailA = seq.accounts[r.slot]?.email ?? "";
-        const emailB = seq.accounts[targetSlot]?.email ?? "";
+        const emailA = seq.accounts[r.slot]?.email ?? '';
+        const emailB = seq.accounts[targetSlot]?.email ?? '';
         const matA = readSlotMaterial(root, r.slot, emailA);
         const matB = readSlotMaterial(root, targetSlot, emailB);
         swapSlotMaterials(root, reverse, r.slot, emailA, matA, targetSlot, emailB, matB);
       } else if (r.slot !== targetSlot) {
         // Empty target: relocate the material, then clear the stale key
         // (Python move parity: write-or-actively-clear, old key cleared).
-        const email = seq.accounts[r.slot]?.email ?? "";
+        const email = seq.accounts[r.slot]?.email ?? '';
         const mat = readSlotMaterial(root, r.slot, email);
         writeSlotMaterial(root, reverse, targetSlot, email, mat);
         clearSlotBackups(root, reverse, r.slot, email);
@@ -300,7 +288,7 @@ export function moveAccount(root: string, identifier: string, target: string): U
 
 function hasLiveSessionProfile(root: string): boolean {
   // Any session profile directory with live records → Python decides.
-  const dir = path.join(root, "sessions");
+  const dir = path.join(root, 'sessions');
   try {
     const entries = fs.readdirSync(dir);
     return entries.length > 0;
@@ -312,7 +300,7 @@ function hasLiveSessionProfile(root: string): boolean {
 // ---- switch ------------------------------------------------------------------
 
 export interface SwitchOptions {
-  strategy?: "best" | "next-available" | "consume-first" | undefined;
+  strategy?: 'best' | 'next-available' | 'consume-first' | undefined;
   json?: boolean;
   force?: boolean;
 }
@@ -330,20 +318,20 @@ function rankByCachedUsage(root: string, strategy: string): RankedSlot[] {
     };
     const windows = Array.isArray(lastGood.windows) ? lastGood.windows : [];
     const worst = windows.reduce<number>(
-      (m, w) => Math.max(m, typeof w.usedPercent === "number" ? w.usedPercent : 0),
+      (m, w) => Math.max(m, typeof w.usedPercent === 'number' ? w.usedPercent : 0),
       0,
     );
     const soonestReset = windows.reduce<number | null>((m, w) => {
-      if (typeof w.resetsAt !== "number") return m;
+      if (typeof w.resetsAt !== 'number') return m;
       return m === null ? w.resetsAt : Math.min(m, w.resetsAt);
     }, null);
     return { slot: r.slot, email: r.email, worst, soonestReset };
   });
   const usable = headroom.filter((r) => r.worst < 100);
-  if (strategy === "next-available") {
+  if (strategy === 'next-available') {
     return usable.sort((a, b) => Number(a.slot) - Number(b.slot));
   }
-  if (strategy === "consume-first") {
+  if (strategy === 'consume-first') {
     return usable.sort((a, b) => (a.soonestReset ?? Infinity) - (b.soonestReset ?? Infinity));
   }
   return usable.sort((a, b) => a.worst - b.worst || Number(a.slot) - Number(b.slot));
@@ -357,7 +345,7 @@ export function switchAccount(
   try {
     sessionShellGuard();
     if (hasLiveSessionProfile(root)) {
-      return unhandled("session-mode profile present; Python owns the adoption/refusal dance");
+      return unhandled('session-mode profile present; Python owns the adoption/refusal dance');
     }
     const configHome = claudeConfigHome();
     const reverse = new ReverseLog();
@@ -366,33 +354,31 @@ export function switchAccount(
       if (!opts.strategy) {
         return {
           code: 2,
-          message: "switch needs an account or --strategy",
+          message: 'switch needs an account or --strategy',
           reverse,
           handled: true,
         };
       }
       const ranked = rankByCachedUsage(root, opts.strategy);
       if (ranked.length === 0) {
-        return unhandled("no cached usage rows; Python performs the live ranking refresh");
+        return unhandled('no cached usage rows; Python performs the live ranking refresh');
       }
       // next-available rotates past the active slot; others take the head.
-      if (opts.strategy === "next-available") {
+      if (opts.strategy === 'next-available') {
         const live = liveIdentity();
         const activeIdx = ranked.findIndex(
-          (r) =>
-            live !== null &&
-            matchLiveSlot(root, live.email, live.organizationUuid) === r.slot,
+          (r) => live !== null && matchLiveSlot(root, live.email, live.organizationUuid) === r.slot,
         );
         target = ranked[(activeIdx + 1) % ranked.length]?.slot ?? null;
       } else {
         target = ranked[0]?.slot ?? null;
       }
-      if (target === null) return unhandled("strategy found no usable account");
+      if (target === null) return unhandled('strategy found no usable account');
     }
     return performFileSwitch(root, configHome, target, opts, reverse);
   } catch (err) {
     if (err instanceof ValidationError && /Multiple accounts/.test(err.message)) {
-      return unhandled("ambiguous email needs the interactive slot prompt");
+      return unhandled('ambiguous email needs the interactive slot prompt');
     }
     return failed(err);
   }
@@ -437,9 +423,7 @@ function performFileSwitch(
         .map(([slot]) => slot);
       if (hits.length === 1) target = hits[0] as string;
       else if (hits.length > 1) {
-        throw new ValidationError(
-          `Multiple accounts found for '${identifier}': ${(hits).join(", ")}`,
-        );
+        throw new ValidationError(`Multiple accounts found for '${identifier}': ${hits.join(', ')}`);
       }
     }
   }
@@ -467,14 +451,18 @@ function performFileSwitch(
   if (!opts.force && liveSlot === slot && liveCreds !== null && liveCreds === backupCreds) {
     const ref = `${slot} (${record.email})`;
     if (opts.json) {
-      return ok(`Already on Account-${slot} (${record.email})`, {
-        schemaVersion: 1,
-        strategy: "direct",
-        from: ref,
-        to: ref,
-        noop: true,
-        reason: "already-active",
-      }, reverse);
+      return ok(
+        `Already on Account-${slot} (${record.email})`,
+        {
+          schemaVersion: 1,
+          strategy: 'direct',
+          from: ref,
+          to: ref,
+          noop: true,
+          reason: 'already-active',
+        },
+        reverse,
+      );
     }
     return ok(`Already on Account-${slot} (${record.email})`, undefined, reverse);
   }
@@ -507,12 +495,16 @@ function performFileSwitch(
     return { fromSlot, accounts: next.accounts };
   });
   void result;
-  return ok(`Switched to Account-${slot} (${record.email})`, {
-    schemaVersion: 1,
-    strategy: opts.strategy ?? "direct",
-    from: result.fromSlot,
-    to: slot,
-  }, reverse);
+  return ok(
+    `Switched to Account-${slot} (${record.email})`,
+    {
+      schemaVersion: 1,
+      strategy: opts.strategy ?? 'direct',
+      from: result.fromSlot,
+      to: slot,
+    },
+    reverse,
+  );
 }
 
 function readBackupConfigText(root: string, slot: string, email: string): string | null {
@@ -524,14 +516,14 @@ function readLiveCredsText(configHome: string): string | null {
 }
 
 function globalConfigPath(configHome: string): string {
-  const legacy = path.join(configHome, ".config.json");
+  const legacy = path.join(configHome, '.config.json');
   try {
     const st = fs.statSync(legacy);
     if (st.isFile() && st.size > 0) return legacy;
   } catch {
     // Fall through.
   }
-  return path.join(process.env["HOME"] ?? "", ".claude.json");
+  return path.join(process.env['HOME'] ?? '', '.claude.json');
 }
 
 function writeEnc(root: string, slot: string, email: string, credentials: string): void {
@@ -543,12 +535,12 @@ function writeEnc(root: string, slot: string, email: string, credentials: string
 }
 
 function seqFile(root: string): string {
-  return path.join(root, "sequence.json");
+  return path.join(root, 'sequence.json');
 }
 
 function readSeqJson(root: string): { seq: ClaudeSequence } {
   const raw = readJsonFile(seqFile(root));
-  if (raw === null) throw new ConfigError("No accounts are managed yet");
+  if (raw === null) throw new ConfigError('No accounts are managed yet');
   return { seq: claudeSequenceSchema.parse(raw) as ClaudeSequence };
 }
 
@@ -588,15 +580,15 @@ export function addAccount(root: string, opts: AddOptions = {}): UseCaseResult {
     if (opts.alias !== undefined) normalizeAlias(opts.alias);
     const capture = readLiveCapture(root);
     if (capture.needsFallback) {
-      return unhandled(`live login is keychain-only: ${capture.reason ?? "unreadable"}`);
+      return unhandled(`live login is keychain-only: ${capture.reason ?? 'unreadable'}`);
     }
     const live = capture.capture;
     if (live === null) {
-      const reason = capture.reason ?? "no-live-login";
-      if (reason === "live-login-is-api-key") {
-        throw new ValidationError("The live login is a managed API key; use add-token for API keys");
+      const reason = capture.reason ?? 'no-live-login';
+      if (reason === 'live-login-is-api-key') {
+        throw new ValidationError('The live login is a managed API key; use add-token for API keys');
       }
-      throw new ConfigError("No active Claude account found. Please log in first.");
+      throw new ConfigError('No active Claude account found. Please log in first.');
     }
     validateEmail(live.email);
     const reverse = new ReverseLog();
@@ -611,9 +603,13 @@ export function addAccount(root: string, opts: AddOptions = {}): UseCaseResult {
         writeText(backupConfigPath(root, num, live.email), live.configText);
         const next: ClaudeSequence = {
           ...seq,
-          accounts: opts.alias !== undefined
-            ? { ...seq.accounts, [num]: { ...seq.accounts[num] as ClaudeRecord, alias: normalizeAlias(opts.alias) } }
-            : { ...seq.accounts },
+          accounts:
+            opts.alias !== undefined
+              ? {
+                  ...seq.accounts,
+                  [num]: { ...(seq.accounts[num] as ClaudeRecord), alias: normalizeAlias(opts.alias) },
+                }
+              : { ...seq.accounts },
           activeAccountNumber: Number(num),
           lastUpdated: nowIso(),
         };
@@ -621,7 +617,7 @@ export function addAccount(root: string, opts: AddOptions = {}): UseCaseResult {
       }
       let slotStr: string;
       if (opts.slot !== undefined) {
-        if (opts.slot < 1) throw new ConfigError("Slot number must be >= 1");
+        if (opts.slot < 1) throw new ConfigError('Slot number must be >= 1');
         slotStr = String(opts.slot);
         if (seq.accounts[slotStr] !== undefined && !opts.assumeYes) {
           throw new OverwriteNeeded(slotStr);
@@ -632,7 +628,9 @@ export function addAccount(root: string, opts: AddOptions = {}): UseCaseResult {
       if (opts.alias !== undefined) {
         for (const [other, rec] of Object.entries(seq.accounts)) {
           if (other !== slotStr && rec.alias === normalizeAlias(opts.alias)) {
-            throw new ConfigError(`Alias '${normalizeAlias(opts.alias)}' is already used by account ${other}`);
+            throw new ConfigError(
+              `Alias '${normalizeAlias(opts.alias)}' is already used by account ${other}`,
+            );
           }
         }
       }
@@ -649,9 +647,13 @@ export function addAccount(root: string, opts: AddOptions = {}): UseCaseResult {
             email: live.email,
             uuid: live.accountUuid,
             organizationUuid: live.organizationUuid,
-            organizationName: prev?.organizationName ?? "",
+            organizationName: prev?.organizationName ?? '',
             added: prev?.added ?? nowIso(),
-            ...(opts.alias !== undefined ? { alias: normalizeAlias(opts.alias) } : (prev?.alias !== undefined ? { alias: prev.alias } : {})),
+            ...(opts.alias !== undefined
+              ? { alias: normalizeAlias(opts.alias) }
+              : prev?.alias !== undefined
+                ? { alias: prev.alias }
+                : {}),
             disabled: false,
           },
         },
@@ -680,7 +682,7 @@ class OverwriteNeeded extends CcswapError {
   }
 }
 
-type ClaudeRecord = ClaudeSequence["accounts"][string];
+type ClaudeRecord = ClaudeSequence['accounts'][string];
 
 function findSlot(seq: ClaudeSequence, email: string, orgUuid: string): string | null {
   for (const [slot, rec] of Object.entries(seq.accounts)) {
@@ -700,18 +702,18 @@ export function addToken(root: string, token: string, opts: AddTokenOptions = {}
   try {
     sessionShellGuard();
     const clean = token.trim();
-    if (clean === "") throw new ValidationError("Token cannot be empty");
+    if (clean === '') throw new ValidationError('Token cannot be empty');
     const { looksLikeApiKey: isKey } = staticTokenKind;
     const isApiKey = isKey(clean);
     if (opts.email !== undefined) validateEmail(opts.email);
     const reverse = new ReverseLog();
     const out = updateClaudeSequence(root, reverse, (seq) => {
       let slot = opts.slot !== undefined ? opts.slot : null;
-      let email = opts.email ?? "";
-      if (slot !== null && slot < 1) throw new ConfigError("Slot number must be >= 1");
+      let email = opts.email ?? '';
+      if (slot !== null && slot < 1) throw new ConfigError('Slot number must be >= 1');
       if (!email) {
         const n = slot ?? nextFreeSlot(new Set(Object.keys(seq.accounts).map(Number)));
-        email = `${isApiKey ? "api-key" : "setup-token"}-${String(n)}@token.local`;
+        email = `${isApiKey ? 'api-key' : 'setup-token'}-${String(n)}@token.local`;
         if (slot === null) slot = n;
       }
       if (slot === null) slot = nextFreeSlot(new Set(Object.keys(seq.accounts).map(Number)));
@@ -719,11 +721,15 @@ export function addToken(root: string, token: string, opts: AddTokenOptions = {}
       // account sharing an email are indistinguishable at switch time.
       const slotStr = String(slot);
       const prevSlot: ClaudeRecord | undefined = seq.accounts[slotStr];
-      const existingSameEmail = findSlot(seq, email, "");
+      const existingSameEmail = findSlot(seq, email, '');
       if (existingSameEmail !== null && existingSameEmail !== slotStr) {
-        const sameKind = isKey(readBackupCredentials(backupCredentialPath(root, existingSameEmail, email)) ?? "");
+        const sameKind = isKey(
+          readBackupCredentials(backupCredentialPath(root, existingSameEmail, email)) ?? '',
+        );
         if (sameKind !== isApiKey) {
-          throw new ValidationError(`An account for ${email} of the other kind already exists (slot ${existingSameEmail})`);
+          throw new ValidationError(
+            `An account for ${email} of the other kind already exists (slot ${existingSameEmail})`,
+          );
         }
       }
       if (seq.accounts[slotStr] !== undefined && !opts.assumeYes) {
@@ -732,11 +738,11 @@ export function addToken(root: string, token: string, opts: AddTokenOptions = {}
       }
       const credentials = isApiKey
         ? clean
-        : JSON.stringify({ claudeAiOauth: { accessToken: clean, scopes: ["user:inference"] } });
+        : JSON.stringify({ claudeAiOauth: { accessToken: clean, scopes: ['user:inference'] } });
       const config = JSON.stringify({
         oauthAccount: {
           emailAddress: email,
-          accountUuid: "",
+          accountUuid: '',
           organizationUuid: null,
           organizationName: null,
         },
@@ -751,19 +757,21 @@ export function addToken(root: string, token: string, opts: AddTokenOptions = {}
           ...seq.accounts,
           [slotStr]: {
             email,
-            uuid: "",
-            organizationUuid: "",
-            organizationName: "",
+            uuid: '',
+            organizationUuid: '',
+            organizationName: '',
             added: prevSlot?.added ?? nowIso(),
             ...(prevSlot?.alias !== undefined ? { alias: prevSlot.alias } : {}),
             disabled: false,
           },
         },
-        sequence: seq.sequence.includes(slot) ? [...seq.sequence] : [...seq.sequence, slot].sort((a, b) => a - b),
+        sequence: seq.sequence.includes(slot)
+          ? [...seq.sequence]
+          : [...seq.sequence, slot].sort((a, b) => a - b),
         activeAccountNumber: Number(slotStr),
         lastUpdated: nowIso(),
       };
-      const kind = isApiKey ? "API key" : "token";
+      const kind = isApiKey ? 'API key' : 'token';
       return { seq: next, changed: [slotStr], note: `Added ${kind} for Account-${slotStr} (${email})` };
     });
     return ok(out.note, undefined, reverse);
