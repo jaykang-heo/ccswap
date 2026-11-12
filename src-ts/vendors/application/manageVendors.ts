@@ -9,6 +9,7 @@
  */
 
 import { execFile } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { ReverseLog } from "../../platform/domain/atomicFile.js";
 import { CcswapError, ConfigError, ValidationError } from "../../platform/domain/errors.js";
 import { backupRoot } from "../../platform/domain/paths.js";
@@ -223,7 +224,7 @@ export function vendorRun(
   root: string,
   tool: string,
   identifier: string,
-  provider?: string,
+  args: string[] = [],
 ): UseCaseResult {
   try {
     const grok = grokGuard(tool);
@@ -235,16 +236,23 @@ export function vendorRun(
     const idx = findVendorIndex(parsed, identifier, provider);
     const record = parsed[idx];
     if (!record) throw new ConfigError(`Unknown account '${identifier}'`);
-    if (tool === "opencode") {
-      return { code: 3, message: "not possible (opencode run)", reverse: new ReverseLog(), handled: true };
-    }
+    if (tool === "opencode") throw new ConfigError("not possible (opencode run)");
     if (record.kind !== "api-key") {
-      return unhandled(`${tool} run for non-API-key accounts execs the vendor product`);
+      if (tool === "muse") throw new ConfigError("Only API-key accounts can run in isolation; Muse has a single stored browser session. Use `muse` directly or `ccswap muse switch --login`");
+      throw new ConfigError(`'${record.alias}' is not the active Kiro login and logins cannot run side by side; run \`ccswap kiro switch ${record.alias} --login\` first`);
     }
     const secret = readSecretFile(root, record.secretRef);
     if (!secret) throw new ConfigError(`Account '${record.alias}' has no stored API key`);
-    // The child takes over the terminal; exec semantics stay in Python.
-    return unhandled(`${tool} run execs the vendor binary with the stored key`);
+    const binary = tool === "kiro" ? "kiro-cli" : "muse";
+    const childArgs = tool === "kiro" ? ["chat", ...args] : args;
+    const env = { ...process.env };
+    if (tool === "muse") {
+      env["META_API_KEY"] = secret;
+      env["TBH_CREDENTIAL_BACKEND"] = "file";
+    } else env["KIRO_API_KEY"] = secret;
+    const child = spawnSync(binary, childArgs, { stdio: "inherit", env });
+    if (child.error) throw new ConfigError(child.error.message);
+    return { code: child.status ?? (child.signal ? 128 : 1), message: "", reverse: new ReverseLog(), handled: true };
   } catch (err) {
     if (err instanceof CcswapError) return failed(err);
     return failed(err);

@@ -1,6 +1,9 @@
 # Node
 node_modules/
 .pnpm-store/
+tests-ts/fixtures/**/home/.cache/
+tests-ts/fixtures/**/home/.local/
+tests-ts/fixtures/**/home/Library/
 
 # Python-generated files
 __pycache__/

@@ -882,9 +882,13 @@ async function cmdVendorTool(tool: string, argv: string[], originalArgv: string[
     }), originalArgv, asJson);
   }
   if (action === "run") {
-    const [target] = positionals(rest);
+    const separator = rest.indexOf("--");
+    const before = separator < 0 ? rest : rest.slice(0, separator);
+    const childArgs = separator < 0 ? [] : rest.slice(separator + 1);
+    const [target] = positionals(before);
     if (!target) return fail(`Usage: ccswap ${tool} run ALIAS [-- ...]`, asJson, 2);
-    const res = vendorRun(root, tool, target);
+    if (tool === "opencode") return fail("not possible (opencode run)", asJson, 3);
+    const res = vendorRun(root, tool, target, childArgs);
     return settleSyncStdout(res, originalArgv, asJson);
   }
   const fb = runPythonFallback(originalArgv);
