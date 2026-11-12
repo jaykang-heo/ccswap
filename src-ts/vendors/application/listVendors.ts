@@ -41,7 +41,6 @@ export interface VendorStatus {
 
 const LABELS: Record<string, string> = {
   muse: "Muse Code",
-  opencode: "OpenCode",
   kiro: "Kiro CLI",
 };
 
@@ -52,14 +51,6 @@ const CAPABILITIES: Record<string, Record<string, { support: string; mechanism: 
     usage: { support: "yes", mechanism: "plan, 5-hour and weekly used % with resets (`muse usage --json`)" },
     "per-account usage": { support: "yes", mechanism: "every account, measured in isolation" },
     run: { support: "partial", mechanism: "API-key accounts only" },
-    "auto-switch": { support: "no", mechanism: "the product cannot do it" },
-  },
-  opencode: {
-    list: { support: "yes", mechanism: "provider-aware, from the vendor" },
-    switch: { support: "partial", mechanism: "native `auth switch` where the installed version has it" },
-    usage: { support: "partial", mechanism: "local tokens and USD estimate per provider/model; provider quotas not reported" },
-    "per-account usage": { support: "partial", mechanism: "a provider's sole account" },
-    run: { support: "no", mechanism: "not possible" },
     "auto-switch": { support: "no", mechanism: "the product cannot do it" },
   },
   kiro: {

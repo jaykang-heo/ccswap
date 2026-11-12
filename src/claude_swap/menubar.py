@@ -38,7 +38,7 @@ REFRESH_CHOICES: tuple[int, ...] = (30, 60, 300)
 AUTO_THRESHOLD_CHOICES: tuple[int, ...] = (80, 90, 95, 98)
 TITLE_PCT_CHOICES: tuple[str, ...] = ("off", "5h", "7d", "both")
 SWITCH_HISTORY_LIMIT = 10
-VENDOR_REFRESH_SECONDS = 180  # Muse/Kiro/OpenCode CLIs are subprocesses; poll them sparingly
+VENDOR_REFRESH_SECONDS = 180  # Muse/Kiro CLIs are subprocesses; poll them sparingly
 NOTIFICATION_BUNDLE_ID = "com.ccswap.menubar"
 
 
@@ -776,7 +776,7 @@ def run(switcher) -> int:
             self._maybe_refresh_vendors()
 
         def _maybe_refresh_vendors(self, force_tools=None):
-            """Muse/Kiro/OpenCode: spawned CLIs, so polled sparingly on their own thread;
+            """Muse/Kiro: spawned CLIs, so polled sparingly on their own thread;
             a slow or hung tool never delays the Claude/Codex snapshot or a manual refresh."""
             if force_tools:
                 self._vendor_force |= set(force_tools)
@@ -1224,11 +1224,11 @@ def run(switcher) -> int:
             return rows
 
         def _tool_sections(self, rumps):
-            """Muse, Kiro and OpenCode like Claude Code: header + one row per account."""
+            """Muse and Kiro like Claude Code: header + one row per account."""
             from claude_swap.vendors.menu import loading_section
 
             items = []
-            for tool in ("muse", "kiro", "opencode"):
+            for tool in ("muse", "kiro"):
                 section = self.tool_sections.get(tool) or loading_section(tool)
                 items.append(rumps.MenuItem(section.title, callback=None))
                 seen = set()
@@ -1301,8 +1301,6 @@ def run(switcher) -> int:
                 outcome, _ = self._vendor_service().switch(
                     row.tool,
                     row.selector,
-                    provider=row.provider,
-                    raw=row.raw,
                     assume_yes=True,  # an explicit click, like switching a Claude account
                 )
                 self.switcher._logger.info("menubar: %s", outcome.message)
@@ -1665,7 +1663,7 @@ def run(switcher) -> int:
 
         def on_refresh_now(self, _sender):
             self.refresh_async(full=True)  # explicit user refresh → full pass
-            self._maybe_refresh_vendors(force_tools={"muse", "kiro", "opencode"})
+            self._maybe_refresh_vendors(force_tools={"muse", "kiro"})
 
         def on_quit(self, _sender):
             self._stop_engine()

@@ -18,11 +18,11 @@ back to Python as noted. “Python” means the command is dispatched unchanged 
 | `swap`, `move` | TS | File backups only; keychain-only state remains on fallback |
 | `export`, `import`, `import-usage` | TS | Unsupported transfer cases handled by fallback |
 | `config` | TS | Service action keys and unsupported forms handled by fallback |
-| `usage` | TS attempt | Token-status path; live probes other than supported Muse/OpenCode probes fall back to Python |
+| `usage` | TS attempt | Token-status path; live probes other than the supported Muse probe fall back to Python |
 | `vendors`, `tools` | TS | Invalid/unported subcommands |
-| `muse`, `opencode`, `kiro` list/accounts/status/add/remove/switch/usage | TS | Native interactive/login flows and unsupported subcommands; cached usage is TS, live probe support is partial |
+| `muse`, `kiro` list/status/add/remove/switch/usage | TS | Native interactive/login flows and unsupported subcommands; cached usage is TS, live probe support is partial |
 | `muse run ALIAS` | TS for registered API-key accounts | `@key`, browser-login accounts, unknown accounts, and child spawn errors fall back to Python |
-| `kiro run`, `opencode run` | Python | Entire command, including stored Kiro login behavior and OpenCode's unsupported-command response |
+| `kiro run` | Python | Entire command, including stored Kiro login behavior |
 | `codex` list/accounts/status/add/remove/switch | TS | Unsupported subcommands and unported live flows |
 | `codex run`, `auto`, `redeem-reset` | Python | Entire command families |
 | `agy` list/status/usage/remove | TS | `agy add` and `agy switch` |
@@ -43,6 +43,6 @@ and tests remain part of the installed runtime and the migration goal of zero
 
 The top-level `run` and interactive `tui` free paths remain on Python. Vendor
 `run` uses TypeScript only for registered Muse API-key accounts. Muse lane key
-selection, browser-login accounts, all Kiro runs, OpenCode runs, and child
+selection, browser-login accounts, all Kiro runs, and child
 spawn errors retain Python behavior. Vendor usage is dispatched through TS
 for cached readings, while live measurements remain a mixed TS/Python path.

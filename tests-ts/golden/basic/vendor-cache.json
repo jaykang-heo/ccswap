@@ -25,32 +25,5 @@
       }
     ],
     "observations": []
-  },
-  "opencode\u001foc": {
-    "state": "available",
-    "reason": "",
-    "hint": "",
-    "plan": null,
-    "source": "opencode local stats",
-    "authoritative": false,
-    "attributedTo": "oc",
-    "observedAt": 1794340000.0,
-    "error": null,
-    "windows": [
-      {
-        "key": "local-tokens",
-        "label": "local tokens",
-        "unit": "tokens",
-        "used": 1500.0,
-        "limit": null,
-        "remaining": null,
-        "usedPercent": null,
-        "resetsAt": null,
-        "scope": "local",
-        "note": "",
-        "resetsOn": null
-      }
-    ],
-    "observations": []
   }
 }

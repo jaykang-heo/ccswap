@@ -23,13 +23,12 @@ from claude_swap.vendors.legacy import LEGACY_FACTORIES, LegacyTool
 from claude_swap.vendors.service import VendorService
 
 # Display order: the peers, then Antigravity.
-TOOL_ORDER = ("claude", "codex", "muse", "kiro", "opencode", "agy")
+TOOL_ORDER = ("claude", "codex", "muse", "kiro", "agy")
 LABELS = {
     "claude": "Claude Code",
     "codex": "Codex",
     "muse": "Muse Code",
     "kiro": "Kiro CLI",
-    "opencode": "OpenCode",
     "agy": "Antigravity",
 }
 TOOL_TIMEOUT_S = 75.0
@@ -158,8 +157,8 @@ class Overview:
             summary.tool_usage = UsageResult(UsageState.ERROR, _safe_error(exc))
         try:
             summary.accounts = service.accounts_usage(tool, refresh=refresh, fresh_since=started)
-            # Discovered-but-unregistered accounts (e.g. OpenCode provider accounts,
-            # Kiro's current login) are shown too, without usage of their own.
+            # Discovered-but-unregistered accounts (e.g. Kiro's current login)
+            # are shown too, without usage of their own.
             registered = {v.alias for v, _ in summary.accounts}
             for view in service.list_views(tool):
                 if not view.registered and view.alias not in registered:
@@ -275,9 +274,6 @@ def usage_headline(result: UsageResult | None) -> str:
             return f"stale · {text}"
         # Numbers kept beside a problem are the *last* reading, never presented as live.
         return f"{_STATE_WORDS.get(result.state, result.state.value)} · last {text}"
-    local = go_headline(result) or local_cost_line(result)
-    if local:
-        return local
     return _STATE_WORDS.get(result.state, result.state.value)
 
 
@@ -285,62 +281,6 @@ def _obs_data(result: UsageResult, key: str):
     for obs in result.observations:
         if isinstance(obs.data, dict) and key in obs.data:
             return obs.data[key]
-    return None
-
-
-def go_lines(result: UsageResult) -> list[str]:
-    """OpenCode Go as Go meters it: dollar-equivalent usage per model in its windows."""
-    go = _obs_data(result, "go")
-    if not isinstance(go, dict):
-        return []
-    lines = ["OpenCode Go usage (dollar-equivalent per model, from local records; not credits):"]
-    for m in go.get("models", [])[:8]:
-        lines.append(
-            f"  {m['model']:<28} 5h ${m['fiveHourUsd']:,.2f} · week ${m['weekUsd']:,.2f}"
-            f" · 30d ${m['thirtyDayUsd']:,.2f}"
-        )
-    if not go.get("models"):
-        lines.append("  no Go usage in the last 30 days")
-    lines.append(
-        f"  {go.get('rule', '')}; your plan's per-model limits are in the OpenCode console"
-    )
-    error = (_obs_data(result, "lastErrors") or {}).get("opencode-go")
-    if error:
-        when = (
-            datetime.fromtimestamp(error["at"]).strftime("%Y-%m-%d %H:%M")
-            if error.get("at")
-            else "?"
-        )
-        status = f" {error['status']}" if error.get("status") else ""
-        lines.append(f"  ! last Go request refused{status}: {error['message']} ({when})")
-    return lines
-
-
-def go_headline(result: UsageResult) -> str | None:
-    go = _obs_data(result, "go")
-    if not isinstance(go, dict):
-        return None
-    models = go.get("models") or []
-    text = "Go · no usage in 30d"
-    if models:
-        top = models[0]  # busiest this week: limits apply per model
-        text = f"Go · 5h ${top['fiveHourUsd']:,.2f} · wk ${top['weekUsd']:,.2f} ({top['model']})"
-    if (_obs_data(result, "lastErrors") or {}).get("opencode-go"):
-        text += " · last request refused"
-    return text
-
-
-def local_cost_line(result: UsageResult, period: str = "30d") -> str | None:
-    for obs in result.observations:
-        providers = obs.data.get("providers") if isinstance(obs.data, dict) else None
-        if isinstance(providers, list) and providers:
-            cost = sum(
-                p["totals"][period]["costUsd"] for p in providers if period in p.get("totals", {})
-            )
-            msgs = sum(
-                p["totals"][period]["messages"] for p in providers if period in p.get("totals", {})
-            )
-            return f"local {period}: {msgs:,} msgs · ${cost:,.2f} est."
     return None
 
 
@@ -380,8 +320,6 @@ def overview_json(summaries: list[ToolSummary]) -> dict[str, Any]:
 
 
 def tool_usage_title(summary: ToolSummary) -> str:
-    if summary.tool == "opencode":
-        return "local usage, all providers"
     usage = summary.tool_usage
     who = usage.attributed_to if usage else None
     if usage is not None and usage.state is UsageState.STALE:
@@ -407,19 +345,7 @@ def render_usage_lines(result: UsageResult, indent: str = "    ") -> list[str]:
         if w.note:
             lines.append(f"{indent}  {w.note}")
     for obs in result.observations:
-        providers = obs.data.get("providers") if isinstance(obs.data, dict) else None
-        if isinstance(providers, list):
-            lines.extend(f"{indent}{line}" for line in go_lines(result))
-            lines.append(f"{indent}local statistics ({obs.source}; not a quota):")
-            for p in providers[:12]:
-                t = p["totals"]
-                unit = "usage" if p["provider"] == "opencode-go" else "cost est."
-                lines.append(
-                    f"{indent}  {p['provider']:<18} 24h {t['24h']['messages']:>6,} msgs"
-                    f"  30d {t['30d']['messages']:>7,} msgs ${t['30d']['costUsd']:>8,.2f}"
-                    f"  all ${t['all']['costUsd']:>8,.2f} {unit}"
-                )
-        elif isinstance(obs.data, dict) and isinstance(obs.data.get("text"), str):
+        if isinstance(obs.data, dict) and isinstance(obs.data.get("text"), str):
             lines.extend(f"{indent}{line}" for line in obs.data["text"].splitlines()[:30])
         elif obs.data:
             pairs = ", ".join(f"{k}={v}" for k, v in list(obs.data.items())[:6])
@@ -453,17 +379,10 @@ def render_summary(summary: ToolSummary) -> list[str]:
         lines.extend(render_usage_lines(summary.tool_usage))
     for view, usage in summary.accounts:
         mark = {True: "*", False: " ", None: "?"}[view.active]
-        prov = (
-            f"{view.provider}/"
-            if view.provider
-            and summary.tool == "opencode"
-            and not view.alias.startswith(view.provider)
-            else ""
-        )
         email = view.identity.get("email")
         tag = "" if view.registered else " [unregistered]"
         lines.append(
-            f"  {mark} {prov}{view.alias}"
+            f"  {mark} {view.alias}"
             + (f" <{email}>" if email and email != view.alias else "")
             + tag
         )

@@ -21,7 +21,7 @@ export function newSecretRef(tool: string): string {
   return `${prefix}-${randomBytes(16).toString("hex")}`;
 }
 
-/** Provider-aware lookup: opencode aliases repeat per provider. */
+/** Provider-aware lookup: an alias may repeat per provider in stored data. */
 export function findVendorIndex(
   accounts: VendorAccount[],
   identifier: string,
@@ -61,7 +61,7 @@ export function vendorAddMutation(
   }
   const entry = toolEntry(doc, tool);
   const existing = (entry.accounts as Array<Record<string, unknown>>).find(
-    (a) => a["alias"] === account.alias && (tool !== "opencode" || (a["provider"] ?? null) === (account.provider ?? null)),
+    (a) => a["alias"] === account.alias,
   );
   if (existing) {
     throw new ConfigError(`'${account.alias}' is already registered for ${tool}`);
@@ -128,10 +128,9 @@ export function vendorSetActiveMutation(doc: VendorsDoc, tool: string, alias: st
 }
 
 /** Exit-3 matrix: which switch/run shapes the product cannot do. */
-export function switchSupport(tool: string, kind: string): "file" | "native" | "interactive" | "unsupported" {
+export function switchSupport(tool: string, kind: string): "file" | "interactive" | "unsupported" {
   void kind;
   if (tool === "muse") return "file"; // API-key accounts via local files; browser sessions need login
-  if (tool === "opencode") return "native"; // `auth switch` where the installed version has it
   if (tool === "kiro") return "interactive"; // guarded interactive logout/login
   throw new UnsupportedCapability(`the product cannot do it (${tool} switch)`);
 }
@@ -139,5 +138,5 @@ export function switchSupport(tool: string, kind: string): "file" | "native" | "
 export function runSupport(tool: string, kind: string): "file" | "unsupported" {
   void kind;
   if (tool === "muse" || tool === "kiro") return "file"; // API-key accounts only
-  throw new UnsupportedCapability("not possible (opencode run)");
+  throw new UnsupportedCapability(`not possible (${tool} run)`);
 }

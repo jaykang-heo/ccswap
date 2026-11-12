@@ -1,5 +1,5 @@
 /**
- * Application: vendor roster commands (muse/opencode/kiro/grok).
+ * Application: vendor roster commands (muse/kiro/grok).
  * Local bookkeeping (add/remove/active-mark) runs in TS with zod at the
  * boundary and a reverse path. Steps that exec or drive the vendor product
  * (interactive logins, `auth switch` where native, `run` exec, `auto`
@@ -63,7 +63,7 @@ export const realVendorExec: VendorExec = (binary, args, input, timeoutMs) =>
     }
   });
 
-export const KNOWN_VENDOR_TOOLS = ["muse", "opencode", "kiro", "grok"] as const;
+export const KNOWN_VENDOR_TOOLS = ["muse", "kiro", "grok"] as const;
 
 function requireKnownTool(tool: string): void {
   if (!(KNOWN_VENDOR_TOOLS as readonly string[]).includes(tool)) {
@@ -107,9 +107,6 @@ export function vendorAdd(
     const grok = grokGuard(tool);
     if (grok) return grok;
     requireKnownTool(tool);
-    if (tool === "opencode" && !opts.provider) {
-      return { code: 2, message: "opencode add needs --provider", reverse: new ReverseLog(), handled: true };
-    }
     if (tool === "muse" && opts.browser && !opts.fromFile) {
       return unhandled("muse add --browser reads the live browser login via the vendor product");
     }
@@ -138,7 +135,6 @@ function defaultKind(tool: string, opts: VendorAddOptions): string {
     if (opts.fromFile) return "browser";
     return opts.secretStdin !== undefined && opts.secretStdin !== null ? "api-key" : "api-key";
   }
-  if (tool === "opencode") return "login";
   return opts.social ?? opts.license ? "login" : "api-key";
 }
 
@@ -175,7 +171,7 @@ export interface VendorSwitchOptions {
 
 /**
  * muse api-key switch runs `muse auth set` (needs --yes); browser switches,
- * kiro interactive flows, and opencode native `auth switch` stay in Python.
+ * and kiro interactive flows stay in Python.
  */
 export async function vendorSwitch(
   root: string,
@@ -194,8 +190,8 @@ export async function vendorSwitch(
     const idx = findVendorIndex(parsed, identifier, opts.provider);
     const record = parsed[idx];
     if (!record) throw new ConfigError(`Unknown account '${identifier}'`);
-    if (tool === "kiro" || tool === "opencode") {
-      return unhandled(`${tool} switch drives the vendor's interactive/native login flow`);
+    if (tool === "kiro") {
+      return unhandled(`${tool} switch drives the vendor's interactive login flow`);
     }
     if (record.kind === "browser") {
       return unhandled("muse browser switch restores a stored login via the vendor product");

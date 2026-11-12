@@ -34,7 +34,6 @@ COMMANDS: list[tuple[str, list[str]]] = [
     ("agy-list.json", ["agy", "list", "--json"]),
     ("agy-status.json", ["agy", "status", "--json"]),
     ("muse-list.json", ["muse", "list", "--json"]),
-    ("opencode-list.json", ["opencode", "list", "--json"]),
     ("kiro-list.json", ["kiro", "list", "--json"]),
     ("vendors.json", ["vendors", "--json"]),
     ("vendors-capabilities.json", ["vendors", "capabilities", "--json"]),
@@ -97,7 +96,6 @@ def generate(fixture: str) -> None:
         "CLAUDE_SECURESTORAGE_CONFIG_DIR",
         "XDG_DATA_HOME",
         "XDG_CONFIG_HOME",
-        "OPENCODE_CONFIG",
         "ANTIGRAVITY_GEMINI_DIR",
         "CCSWAP_BACKUP_ROOT",
     ):

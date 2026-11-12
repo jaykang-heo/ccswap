@@ -1502,7 +1502,7 @@ def main() -> None:
         from claude_swap.vendors.cli import usage_command
 
         sys.exit(usage_command(argv[1:]))
-    if argv and argv[0] in ("vendors", "tools", "muse", "opencode", "kiro"):
+    if argv and argv[0] in ("vendors", "tools", "muse", "kiro"):
         from claude_swap.vendors.cli import tool_command, vendors_command
 
         code = (

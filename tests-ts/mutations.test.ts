@@ -564,8 +564,8 @@ describe("export / import round-trip", () => {
 
 describe("usage refresh / check", () => {
   it("refreshes vendor tools with the failing probe degrading to stale rows", async () => {
-    // Fixture vendor stubs fail: muse/opencode degrade to cached rows, never fatal.
-    const res = await runTs(["usage", "muse", "opencode", "--refresh", "--json"]);
+    // Fixture vendor stubs fail: muse degrades to cached rows, never fatal.
+    const res = await runTs(["usage", "muse", "--refresh", "--json"]);
     expect(res.code).toBe(0);
     const payload = JSON.parse(res.stdout) as {
       liveRefresh: boolean;
@@ -574,7 +574,6 @@ describe("usage refresh / check", () => {
     expect(payload.liveRefresh).toBe(true);
     const states = new Map(payload.tools.map((t) => [t.tool, t.accounts.map((a) => a.state)]));
     expect(states.get("muse")).toEqual(["stale"]);
-    expect(states.get("opencode")).toEqual(["stale"]);
   });
 
   it("--check passes when every requested account shows a cached row", async () => {
@@ -605,9 +604,8 @@ describe("overview / statusline backends", () => {
     expect(counts.get("codex")).toBe(1);
     expect(counts.get("agy")).toBe(1);
     expect(counts.get("muse")).toBe(1);
-    expect(counts.get("opencode")).toBe(1);
     expect(counts.get("kiro")).toBe(0);
-    expect(overview.vendors.vendors).toHaveLength(3);
+    expect(overview.vendors.vendors).toHaveLength(2);
     expect(overview.settings).toHaveLength(SETTING_SPECS.length);
   });
 

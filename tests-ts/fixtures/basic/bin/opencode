@@ -1,3 +1,0 @@
-#!/bin/sh
-if [ "$1" = "--version" ]; then echo "opencode 9.9.9-fixture"; exit 0; fi
-echo "fixture opencode: unsupported" >&2; exit 1

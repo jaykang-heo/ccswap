@@ -2,8 +2,7 @@
 
 Every surface calls this class; none of them re-implements selection,
 locking, verification or JSON shaping.  It only talks to adapters through the
-capability protocols, so it contains no per-vendor branching except the
-OpenCode ``provider`` qualifier, which is data (``AccountRecord.provider``).
+capability protocols, so it contains no per-vendor branching.
 """
 
 from __future__ import annotations
@@ -41,12 +40,11 @@ from claude_swap.vendors.usage_cache import ACTIVE_KEY, UsageCache
 USAGE_TTL_OK = 60.0
 USAGE_TTL_FAIL = 15.0
 LOCK_WAIT_S = 100.0  # > the slowest probe chain (Kiro: help + whoami + 40 s probe + whoami)
-# Per-tool (success, failure) freshness: each probe spawns a CLI, OpenCode's aggregate
-# scans every local message, so these are polled less often than a cheap status call.
+# Per-tool (success, failure) freshness: each probe spawns a CLI, so these are polled
+# less often than a cheap status call.
 USAGE_TTLS: dict[str, tuple[float, float]] = {
     "muse": (60.0, 20.0),
     "kiro": (180.0, 30.0),
-    "opencode": (300.0, 60.0),
 }
 
 
@@ -82,21 +80,15 @@ class VendorService:
         tool: str,
         selector: str,
         provider: str | None = None,
-        *,
-        allow_index: bool = True,
     ) -> AccountRecord:
-        """Alias first (so a numeric alias stays reachable), then ``list`` position.
-
-        ``allow_index=False`` is for selectors that are vendor identifiers (an OpenCode
-        account id/label), which must never be reinterpreted as a list position.
-        """
+        """Alias first (so a numeric alias stays reachable), then ``list`` position."""
         records = [
             r for r in self.store.records(tool) if provider is None or r.provider == provider
         ]
         exact = [r for r in records if r.alias == selector]
         if exact:
             return exact[0]
-        if allow_index and selector.isascii() and selector.isdigit():
+        if selector.isascii() and selector.isdigit():
             index = int(selector)
             if 1 <= index <= len(records):
                 return records[index - 1]
@@ -224,39 +216,25 @@ class VendorService:
         tool: str,
         selector: str,
         *,
-        provider: str | None = None,
         assume_yes: bool = False,
         interactive: bool = False,
-        raw: bool = False,
     ) -> tuple[SwitchOutcome, AccountRecord | None]:
         adapter = self.adapter(tool)
         self._need(adapter, SwitchingCapability, Capability.SWITCH, "account switching")
         adapter.require_installed()
         records = self.store.records(tool)
-        record: AccountRecord | None = None
-        if not raw:
-            try:
-                record = self.resolve(tool, selector, provider, allow_index=tool != "opencode")
-            except AccountNotRegistered:
-                if tool != "opencode" or provider is None:
-                    raise
-        if record is None and (tool != "opencode" or provider is None):
-            raise AccountNotRegistered(f"No registered {tool} account '{selector}'")
-        # OpenCode only: an unregistered but vendor-listed (provider, account) is switchable.
-        secret = self._secret(record) if record else None
+        record = self.resolve(tool, selector)
+        secret = self._secret(record)
         lock = FileLock(self.store.root / f"switch-{tool}.lock", timeout=10.0)
         if not lock.acquire():
             raise VendorError(f"Another {adapter.label} switch is already running")
         try:
             self._save_back(adapter, tool, records)
-            if record is None:
-                outcome = adapter.switch_account(provider, selector)  # type: ignore[attr-defined]
-            else:
-                outcome = adapter.switch(  # type: ignore[attr-defined]
-                    record, secret, assume_yes=assume_yes, interactive=interactive, context=records
-                )
+            outcome = adapter.switch(  # type: ignore[attr-defined]
+                record, secret, assume_yes=assume_yes, interactive=interactive, context=records
+            )
             warnings = list(outcome.warnings)
-            if record is not None and outcome.activates:
+            if outcome.activates:
                 try:
                     self.store.set_active(tool, record.alias, record.provider)
                 except ClaudeSwitchError:

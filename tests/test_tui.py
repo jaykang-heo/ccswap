@@ -1034,7 +1034,6 @@ class TestDashboard:
                 "settings-menu",
                 "tool:muse",
                 "tool:kiro",
-                "tool:opencode",
                 "tool:overview",
                 "quit",
             ]

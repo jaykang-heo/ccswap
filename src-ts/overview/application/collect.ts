@@ -87,7 +87,7 @@ export function collectOverview(root: string = backupRoot()): Overview {
     }
     tools.push({ tool, accounts: payload.accounts.length, active: payload.active, states });
   }
-  for (const tool of ["muse", "opencode", "kiro"] as const) {
+  for (const tool of ["muse", "kiro"] as const) {
     const states: Record<string, number> = {};
     for (const a of toolAccounts(doc, tool)) {
       const cached = vendorUsageFor(cache, tool, a.alias);

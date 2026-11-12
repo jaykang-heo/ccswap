@@ -7,12 +7,11 @@ from collections.abc import Callable, Iterable
 from claude_swap.vendors.core import Runner, ToolAdapter, VendorError
 from claude_swap.vendors.kiro import KiroAdapter
 from claude_swap.vendors.muse import MuseAdapter
-from claude_swap.vendors.opencode import OpenCodeAdapter
 
 AdapterFactory = Callable[[Runner | None], ToolAdapter]
 
 # Order is display order (CLI, TUI, JSON).
-DEFAULT_FACTORIES: tuple[AdapterFactory, ...] = (MuseAdapter, OpenCodeAdapter, KiroAdapter)
+DEFAULT_FACTORIES: tuple[AdapterFactory, ...] = (MuseAdapter, KiroAdapter)
 
 
 class ToolRegistry:

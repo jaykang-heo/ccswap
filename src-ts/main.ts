@@ -343,7 +343,7 @@ function cmdVendors(argv: string[]): number {
     if (tool !== undefined && !known.includes(tool)) {
       return fail(`Unknown vendor '${tool}'. Known: ${known.join(", ")}`, asJson);
     }
-    // Bare `vendors capabilities` matches Python exactly (muse/opencode/kiro);
+    // Bare `vendors capabilities` matches Python exactly (muse/kiro);
     // grok is answered only when asked for explicitly (no Python counterpart).
     const tools = tool === undefined ? knownCapabilityTools() : [tool];
     const vendors = capabilitiesWithGrok(tool === "grok" ? [GROK_TOOL] : tools);
@@ -376,7 +376,7 @@ function cmdUsageCached(argv: string[]): number {
   const root = backupRoot();
   const cache = loadVendorUsage(root);
   const claudeUsage = new Map(loadClaudeUsage(root).map((u) => [u.slot, u]));
-  const selected = tools.length > 0 ? tools : ["claude", "codex", "muse", "kiro", "opencode", "agy"];
+  const selected = tools.length > 0 ? tools : ["claude", "codex", "muse", "kiro", "agy"];
   for (const t of selected) {
     if (![...VENDOR_TOOLS, ...LEGACY_TOOLS, "grok"].includes(t)) {
       return fail(`Unknown tool: ${t}`, asJson);
@@ -809,7 +809,7 @@ function cmdAgy(argv: string[], originalArgv: string[]): number {
   return fb.status ?? 1;
 }
 
-// ---- vendor tools (muse/opencode/kiro/grok) --------------------------------------------------
+// ---- vendor tools (muse/kiro/grok) --------------------------------------------------
 
 async function cmdVendorTool(tool: string, argv: string[], originalArgv: string[]): Promise<number> {
   const [action, ...rest] = argv;
@@ -870,10 +870,6 @@ async function cmdVendorTool(tool: string, argv: string[], originalArgv: string[
   }
   if (action === "switch") {
     const [target] = positionals(rest, ["--provider"]);
-    if (tool === "opencode" && rest.length >= 2) {
-      // `opencode switch PROVIDER ACCOUNT`
-      return settle(await vendorSwitch(root, tool, rest[1] as string, { provider: rest[0], yes: hasFlag(argv, "--yes") }), originalArgv, asJson);
-    }
     if (!target) return fail(`Usage: ccswap ${tool} switch ALIAS [--yes]`, asJson, 2);
     return settle(await vendorSwitch(root, tool, target, {
       provider: flagValue(argv, "--provider") ?? undefined,

@@ -14,7 +14,6 @@ from claude_swap.vendors.core import AccountRecord, RunResult, UsageResult, Usag
 from claude_swap.vendors.kiro import parse_usage_report
 from claude_swap.vendors.legacy import LegacyTool, windows_from_usage
 from claude_swap.vendors.muse import parse_allowance
-from claude_swap.vendors.opencode import OpenCodeAdapter, summarize
 from claude_swap.vendors.overview import Overview, headline, overview_json, window_text
 from claude_swap.vendors.registry import ToolRegistry
 from claude_swap.vendors.service import VendorService
@@ -227,55 +226,6 @@ def test_window_text_never_invents_a_denominator():
         == "5-hour window 34% used"
     )
     assert window_text(UsageWindow("x", "X", "percent")) == "X: not reported"
-
-
-# ---- OpenCode -----------------------------------------------------------------
-
-
-def row(provider, model, n30, c30, nall, call):
-    base = {"provider": provider, "model": model, "last": 5}
-    for p in ("24h", "7d"):
-        base[f"n_{p}"], base[f"cost_{p}"] = 0, 0.0
-    base["n_30d"], base["cost_30d"], base["n_all"], base["cost_all"] = n30, c30, nall, call
-    base["input_30d"] = 100
-    return base
-
-
-def test_opencode_summary_groups_by_provider_and_sorts():
-    out = summarize(
-        [
-            row("a", "m1", 1, 0.5, 5, 2.0),
-            row("b", "x", 9, 1.0, 9, 1.0),
-            row("a", "m2", 2, 0.25, 2, 0.25),
-            {"bad": 1},
-        ]
-    )
-    assert [p["provider"] for p in out] == ["b", "a"]
-    a = out[1]
-    assert a["totals"]["30d"] == {
-        "messages": 3,
-        "costUsd": 0.75,
-        "tokens": {"input": 200, "output": 0, "reasoning": 0, "cacheRead": 0, "cacheWrite": 0},
-    }
-    assert [m["model"] for m in a["models"]] == ["m1", "m2"]
-
-
-def test_opencode_stats_query_is_read_only_and_avoids_credential_tables():
-    from claude_swap.vendors.opencode import _STATS_SQL, _cutoffs
-
-    sql = _STATS_SQL.format(**_cutoffs(time.time())).lower()
-    assert sql.startswith("select ") and " from message " in sql
-    for word in ("insert", "update", "delete", "drop", "credential", "account", "attach", "pragma"):
-        assert word not in sql.replace("json_extract", "")
-
-
-def test_opencode_per_account_usage_is_never_the_providers_total(tmp_path):
-    r = FakeRunner({"opencode": "/b/opencode"})
-    r.on("/b/opencode", "--version", result=ok("1.99.0"))
-    adapter = OpenCodeAdapter(r)
-    rec = AccountRecord("opencode", "w", "provider-account", "anthropic", {"account": "w"})
-    result = adapter.usage(rec, None)
-    assert result.state is UsageState.UNAVAILABLE and not result.observations
 
 
 # ---- Service: staleness, coalescing --------------------------------------------
@@ -734,7 +684,7 @@ def test_removed_account_does_not_keep_its_in_memory_reading(tmp_path):
 def test_claude_namespace_rejects_other_tools_and_passes_claude_verbs():
     from claude_swap.vendors.cli import claude_argv
 
-    for other in ("codex", "kiro", "muse", "opencode", "agy", "vendors"):
+    for other in ("codex", "kiro", "muse", "agy", "vendors"):
         with pytest.raises(ValueError):
             claude_argv([other, "list"])
     assert claude_argv(["run", "1"]) == ["run", "1"]

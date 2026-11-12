@@ -1,11 +1,11 @@
-"""Shared vocabulary for vendor integrations (Muse, OpenCode, Kiro, ...).
+"""Shared vocabulary for vendor integrations (Muse, Kiro, ...).
 
 Six concerns are kept apart on purpose:
 
 * **tool identity**    -- the CLI being managed (``ToolAdapter.key``)
 * **account identity** -- a CCSwap-registered account/profile of one tool
   (:class:`AccountRecord`)
-* **model provider**   -- Anthropic/OpenAI/Meta...; only OpenCode surfaces it
+* **model provider**   -- Anthropic/OpenAI/Meta...; kept on the record for stored data
   (``AccountRecord.provider``)
 * **authentication**   -- how the tool legitimately logs in / selects accounts
 * **usage**            -- :class:`UsageResult`, with an explicit measurement kind
@@ -128,7 +128,7 @@ class AccountRecord:
     tool: str
     alias: str
     kind: str  # api-key | browser | login | provider-account
-    provider: str | None = None  # OpenCode model provider (anthropic, openai, ...)
+    provider: str | None = None  # model provider qualifier (stored data; unused by current vendors)
     identity: Mapping[str, str] = field(default_factory=dict)  # non-secret ids
     secret_ref: str | None = None  # key into SecretStore; never the secret
     login_hint: Mapping[str, str] = field(default_factory=dict)  # e.g. kiro login flags
@@ -544,7 +544,7 @@ def redact(text: str, secrets: Sequence[str] = ()) -> str:
 
 
 def help_text(result: RunResult) -> str:
-    """CLI help, wherever the tool prints it (OpenCode/yargs writes it to stderr)."""
+    """CLI help, wherever the tool prints it (some CLIs write it to stderr)."""
     return f"{result.stdout}\n{result.stderr}"
 
 

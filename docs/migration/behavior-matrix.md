@@ -67,7 +67,7 @@ resolve-validate-mutate on `sequence.json`.
 
 | Command | Inputs | Outputs | Files / keychain | External calls | Errors |
 |---|---|---|---|---|---|
-| `usage [TOOL ...] [--json] [--refresh] [--check]` | tool filter (`claude codex muse kiro opencode agy`), json, refresh, check | per tool: installed? version? per-account usage windows (5h/7d/weekly/credits/local tokens) + resets, or state + reason (`available/unavailable/unsupported/unauthenticated/stale/error`); unknown stays unknown | reads all rosters + both usage caches; without `--refresh` serves cached/last-good rows; `--refresh/--check` measures live | per-tool vendor CLIs/APIs on own worker with 75 s deadline each (`muse usage --json`, kiro V2 harness, opencode local stats, OAuth endpoints); one hung tool never delays others | unknown tool → exit 1/2; `--check` exits 1 if any account cannot be shown; Ctrl-C → 130 |
+| `usage [TOOL ...] [--json] [--refresh] [--check]` | tool filter (`claude codex muse kiro agy`), json, refresh, check | per tool: installed? version? per-account usage windows (5h/7d/weekly/credits) + resets, or state + reason (`available/unavailable/unsupported/unauthenticated/stale/error`); unknown stays unknown | reads all rosters + both usage caches; without `--refresh` serves cached/last-good rows; `--refresh/--check` measures live | per-tool vendor CLIs/APIs on own worker with 75 s deadline each (`muse usage --json`, kiro V2 harness, OAuth endpoints); one hung tool never delays others | unknown tool → exit 1/2; `--check` exits 1 if any account cannot be shown; Ctrl-C → 130 |
 
 ## 3. switch (mutating session control — NOT ported in wave 1)
 
@@ -81,21 +81,21 @@ resolve-validate-mutate on `sequence.json`.
 
 Vendor metadata lives in `vendors.json`; API-key secrets in `secrets/`.
 `codex` and `agy` are legacy stores (own `sequence.json`/`accounts.json`),
-not the vendor store. `muse`/`opencode`/`kiro` adapters implement
-`ToolAdapter` (`registry.py` `DEFAULT_FACTORIES` = muse, opencode, kiro;
-display order `claude, codex, muse, kiro, opencode, agy`).
+not the vendor store. `muse`/`kiro` adapters implement
+`ToolAdapter` (`registry.py` `DEFAULT_FACTORIES` = muse, kiro;
+display order `claude, codex, muse, kiro, agy`).
 
 | Command | Inputs | Outputs | Files / keychain | External calls | Errors |
 |---|---|---|---|---|---|
 | `codex list [--json]` | — | saved Codex accounts (+ usage if refreshed) | reads `<backup>/codex/sequence.json`, `auth.json` backups, `~/.codex/auth.json` (live) | usage endpoint on refresh | missing auth → `stored Codex auth.json is missing` |
 | `codex switch [NUM\|EMAIL] [--strategy …] [--json]` | target/strategy | file-backed Codex login replaced | writes `~/.codex/auth.json` from backup | none | Codex must use file credential store |
 | `codex run …` / `codex add [--slot]` / `codex remove …` / `codex auto …` / `codex redeem-reset …` | per-subcommand | session/private-home run; slot ops; banked-reset redeem | codex dir + sessions + manifests | Codex CLI subprocess | mirrors top-level errors |
-| `muse|opencode|kiro list\|accounts [--json]` | — | registered aliases + status | reads `vendors.json` (+ vendor's own auth file for discovery) | `whoami`/equivalent for active mark | corrupt `vendors.json` → `VendorError`, exit 1 |
-| `muse|opencode|kiro add …` | alias + kind-specific flags (`--api-key-stdin`, `--social`, `--license`, provider) | registration (vendor login untouched, except noted logins) | writes `vendors.json` (+ `secrets/` for API keys) | `opencode auth login` for `opencode login`; kiro interactive logout/login (guarded, verified) | bad alias → `VendorError`; exit 3 when the product cannot do it (e.g. kiro/opencode auto-switch, muse per-account switch of browser sessions) |
-| `muse|opencode|kiro remove ALIAS [--json]` | alias | registration forgotten, secret file dropped | writes `vendors.json`, deletes secret ref | none | unknown alias → error |
-| `muse|opencode|kiro switch ALIAS [--json]` | alias | active account changed via vendor mechanism (muse: API-key accounts only; opencode: native `auth switch` where supported; kiro: interactive, verified) | vendor auth files | vendor CLI (`muse auth set`, `opencode auth switch`, kiro login flow) | exit 3 where unsupported |
-| `muse|opencode|kiro run ALIAS [-- …]` | alias + args | runs tool with that identity (API-key accounts; opencode: not possible) | reads secret ref | vendor CLI subprocess | exit 3 for opencode |
-| `muse|opencode|kiro usage [--json]` | — | verified usage or why unavailable | usage cache + live measure | per-vendor mechanism (muse `usage --json`, kiro V2 harness, opencode local tokens/USD) | — |
+| `muse|kiro list [--json]` | — | registered aliases + status | reads `vendors.json` (+ vendor's own auth file for discovery) | `whoami`/equivalent for active mark | corrupt `vendors.json` → `VendorError`, exit 1 |
+| `muse|kiro add …` | alias + kind-specific flags (`--api-key-stdin`, `--social`, `--license`) | registration (vendor login untouched, except noted logins) | writes `vendors.json` (+ `secrets/` for API keys) | kiro interactive logout/login (guarded, verified) | bad alias → `VendorError`; exit 3 when the product cannot do it (e.g. kiro auto-switch, muse per-account switch of browser sessions) |
+| `muse|kiro remove ALIAS [--json]` | alias | registration forgotten, secret file dropped | writes `vendors.json`, deletes secret ref | none | unknown alias → error |
+| `muse|kiro switch ALIAS [--json]` | alias | active account changed via vendor mechanism (muse: API-key accounts only; kiro: interactive, verified) | vendor auth files | vendor CLI (`muse auth set`, kiro login flow) | exit 3 where unsupported |
+| `muse|kiro run ALIAS [-- …]` | alias + args | runs tool with that identity (API-key accounts) | reads secret ref | vendor CLI subprocess | — |
+| `muse|kiro usage [--json]` | — | verified usage or why unavailable | usage cache + live measure | per-vendor mechanism (muse `usage --json`, kiro V2 harness) | — |
 | `muse auto …` | polling options | same shape as top-level `auto` for Muse allowance | same as `auto` scoped to muse | muse usage polling | Muse needs one credential backend (`TBH_CREDENTIAL_BACKEND=file`) |
 | `agy list\|status\|usage [--json]` | — | Antigravity accounts / current login / quota groups | reads `<backup>/agy/accounts.json`, `usage-<n>.json` | quota endpoints on refresh | `OSError` → "Cannot access Antigravity account storage", exit 1 |
 | `agy add` / `agy remove …` / `agy switch … [--json]` | identifier | shared-login account ops (existing CLI/App/IDE sessions may need restart) | agy dir + shared login files | `agy` CLI | — |
@@ -121,7 +121,7 @@ keychain — cached/last-good readings only; live refresh stays in Python):
 
 - `list [--json] [--provider …]`, `ls`, `status [--json]`
 - `claude list|ls|usage`
-- `codex list`, `agy list|status|usage`, `muse|opencode|kiro list|accounts`
+- `codex list`, `agy list|status|usage`, `muse|kiro list`
 - `vendors [--json]`, `vendors capabilities [TOOL] [--json]`
 - `usage [TOOLS] [--json]` (cached; `--refresh`/`--check` fall through to Python)
 - `config list|get|path`, `alias` (no args), `map` (no args)
@@ -142,9 +142,9 @@ see `src-ts/platform/domain/atomicFile.ts`):
   ranking), `add`, `add-token`, `remove --yes`, `disable`/`enable`,
   `alias` set/`--unset`, `swap`, `move`, `map`/`unmap`, `unclaimed`/`--purge`,
   `export`/`import`/`import-usage`, `config set`/`unset`
-- `codex add|remove|switch|status`, `agy remove`, `muse|opencode|kiro
+- `codex add|remove|switch|status`, `agy remove`, `muse|kiro
   add|remove|status|usage` (cached), `muse` api-key `switch --yes`
-- `usage [--refresh] [--check]` for muse/opencode probes; every other tool's
+- `usage [--refresh] [--check]` for the muse probe; every other tool's
   live probe stays in Python
 - `overview --json` and the `collectOverview`/`collectStatusline` backends
   the menubar/raycast/tui frontends render from
@@ -157,8 +157,8 @@ TS attempts a ported command when its inputs are local files; the use-case
 returns `handled: false` and the dispatcher falls through to Python with the
 original argv when it hits what TS does not do: macOS Keychain-only backups,
 live session-mode profiles, interactive prompts (no `--yes`), the browser
-OAuth flow (`relogin`), vendor-native/interactive flows (`opencode
-login/logout`, kiro/opencode `switch`, `run` exec, `auto` polling). Output
+OAuth flow (`relogin`), vendor-native/interactive flows (kiro `switch`,
+`run` exec, `auto` polling). Output
 parity is therefore exact on every path, including `claude <verb>` rewrites
 (`claude list|ls|usage` → `--list --provider claude`, all other established
 verbs pass through, unknown verbs exit 2 via Python).

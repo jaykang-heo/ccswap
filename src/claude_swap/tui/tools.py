@@ -1,12 +1,12 @@
 """First-class tool pages: one per coding tool, plus an all-tools overview.
 
 Claude Code, Codex and Antigravity keep their established home: the dashboard,
-filtered to that tool (the reference experience).  Muse Code, Kiro CLI and
-OpenCode get a page of their own with the same anatomy: identity, install and
+filtered to that tool (the reference experience).  Muse Code and Kiro CLI
+get a page of their own with the same anatomy: identity, install and
 login state, the current usage with real bars, every account with *its own*
 usage, reset times, freshness and the operations the tool actually supports.
 
-All pages share the number keys (``1``-``6``, ``0`` overview) and the same backend
+All pages share the number keys (``1``-``5``, ``0`` overview) and the same backend
 (:mod:`claude_swap.vendors.overview` / ``VendorService``) as the CLI, menu bar and
 Raycast.  Every vendor call runs in a thread worker; unknown values stay unknown.
 """
@@ -56,7 +56,7 @@ _log = logging.getLogger(__name__)
 BACKGROUND: weakref.WeakSet[threading.Thread] = weakref.WeakSet()
 
 DASHBOARD_TOOLS = ("claude", "codex", "agy")  # their page is the filtered dashboard
-TOOL_KEYS = {str(i): tool for i, tool in enumerate(TOOL_ORDER, 1)}  # 1..6
+TOOL_KEYS = {str(i): tool for i, tool in enumerate(TOOL_ORDER, 1)}  # 1..5
 NAV_BINDINGS = [
     *(Binding(key, f"goto('{tool}')", show=False) for key, tool in TOOL_KEYS.items()),
     Binding("0", "goto('overview')", mark("Overview"), show=False),
@@ -223,7 +223,7 @@ class _ToolPage(Screen):
 
 
 class ToolScreen(_ToolPage):
-    """One tool, first class: Muse Code, Kiro CLI, OpenCode (and any future vendor)."""
+    """One tool, first class: Muse Code, Kiro CLI (and any future vendor)."""
 
     BINDINGS = [  # noqa: RUF012 - Textual convention
         Binding("r", "refresh", mark("Refresh")),
@@ -432,8 +432,6 @@ class ToolScreen(_ToolPage):
         howto = {
             "muse": "ccswap muse add <alias> --api-key-stdin   API key (hidden prompt / stdin)\n"
             "ccswap muse add <alias> --browser         name the current browser login",
-            "opencode": "opencode auth login                          add the account in OpenCode\n"
-            "ccswap opencode add <alias> --provider <p> [--account <a>]",
             "kiro": "kiro-cli login                               sign in, then:\n"
             "ccswap kiro add <alias>                      register the current login\n"
             "ccswap kiro add <alias> --api-key            KIRO_API_KEY (hidden prompt / stdin)",
@@ -489,9 +487,7 @@ class ToolScreen(_ToolPage):
             self._message = f"'{view.alias}' is already active"
             self._render_detail()
             return
-        if tool == "opencode" and view.provider:
-            self._start_switch(view, assume_yes=False)
-        elif tool == "muse" and view.kind == "api-key":
+        if tool == "muse" and view.kind == "api-key":
             self.app.push_screen(
                 OutputModal(
                     "Switch",
@@ -520,21 +516,13 @@ class ToolScreen(_ToolPage):
     def _start_switch(self, view: AccountView, *, assume_yes: bool) -> None:
         self._busy = True
         tool = self.tool
-        raw = tool == "opencode" and not view.registered
-        selector = (
-            (view.identity.get("id") or view.identity.get("account") or view.alias)
-            if raw
-            else view.alias
-        )
-        provider = view.provider if tool == "opencode" else None
+        selector = view.alias
 
         service = self.service
 
         def work(post) -> None:
             try:
-                outcome, _ = service.switch(
-                    tool, selector, provider=provider, assume_yes=assume_yes, raw=raw
-                )
+                outcome, _ = service.switch(tool, selector, assume_yes=assume_yes)
                 message = outcome.message + (
                     "\n⟳ restart running sessions to use it" if outcome.restart_required else ""
                 )
