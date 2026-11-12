@@ -226,15 +226,15 @@ def section_for(summary: ToolSummary, docs: str | None, now: float) -> MenuSecti
         can = _row_switchable(tool, view, usage)
         selector = view.alias
         email = view.identity.get("email", "")
-        label = f"{number}  {view.alias}"
+        row = f"{number}  {view.alias}"
         if email and email != view.alias:
-            label += f"  {email}"
+            row += f"  {email}"
         if view.identity.get("profileArn"):
-            label += f"  [AWS {view.identity['profileArn'].split(':')[4]}]"
-        label += f"  {menu_usage_text(usage, now)}"
+            row += f"  [AWS {view.identity['profileArn'].split(':')[4]}]"
+        row += f"  {menu_usage_text(usage, now)}"
         section.accounts.append(
             MenuRow(
-                label[:140],
+                row[:140],
                 tool,
                 action="switch" if can else None,
                 selector=selector if can else None,
