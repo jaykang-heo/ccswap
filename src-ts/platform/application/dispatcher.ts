@@ -58,7 +58,7 @@ export function isPorted(argv: string[]): boolean {
     if (second === "list" || second === "accounts" || second === "status") return true;
     if (second === "add" || second === "remove") return true;
     if (second === "switch" || second === "usage") return true;
-    if (second === "run") return first !== "opencode";
+    if (second === "run") return first === "muse";
     return false;
   }
   if (first === "vendors" || first === "tools") {

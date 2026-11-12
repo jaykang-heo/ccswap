@@ -8,8 +8,9 @@
  * dispatcher falls through to Python.
  */
 
-import { execFile } from "node:child_process";
-import { spawnSync } from "node:child_process";
+import { execFile, spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
+import os from "node:os";
 import { ReverseLog } from "../../platform/domain/atomicFile.js";
 import { CcswapError, ConfigError, ValidationError } from "../../platform/domain/errors.js";
 import { backupRoot } from "../../platform/domain/paths.js";
@@ -220,12 +221,13 @@ export async function vendorSwitch(
 }
 
 /** `muse run ALIAS [-- ...]`: API-key accounts only; exec stays in Python. */
-export function vendorRun(
+export async function vendorRun(
   root: string,
   tool: string,
   identifier: string,
   args: string[] = [],
-): UseCaseResult {
+  provider?: string,
+): Promise<UseCaseResult> {
   try {
     const grok = grokGuard(tool);
     if (grok) return grok;
@@ -233,29 +235,32 @@ export function vendorRun(
     const doc = loadVendorsDocOrThrow(root);
     const entry = doc.tools[tool] as { accounts?: unknown[] } | undefined;
     const parsed = parseVendorAccounts(Array.isArray(entry?.accounts) ? (entry.accounts) : []);
-    const idx = findVendorIndex(parsed, identifier, provider);
-    const record = parsed[idx];
-    if (!record) throw new ConfigError(`Unknown account '${identifier}'`);
-    if (tool === "opencode") throw new ConfigError("not possible (opencode run)");
-    if (record.kind !== "api-key") {
-      if (tool === "muse") throw new ConfigError("Only API-key accounts can run in isolation; Muse has a single stored browser session. Use `muse` directly or `ccswap muse switch --login`");
-      throw new ConfigError(`'${record.alias}' is not the active Kiro login and logins cannot run side by side; run \`ccswap kiro switch ${record.alias} --login\` first`);
-    }
+    if (tool !== "muse" || identifier === "@key") return unhandled();
+    const record = parsed[findVendorIndex(parsed, identifier, provider)];
+    if (!record || record.kind !== "api-key") return unhandled();
     const secret = readSecretFile(root, record.secretRef);
     if (!secret) throw new ConfigError(`Account '${record.alias}' has no stored API key`);
-    const binary = tool === "kiro" ? "kiro-cli" : "muse";
-    const childArgs = tool === "kiro" ? ["chat", ...args] : args;
+    const binary = process.env["MUSE_CHILD"] ?? "muse";
+    const childArgs = args;
     const env = { ...process.env };
-    if (tool === "muse") {
-      env["META_API_KEY"] = secret;
-      env["TBH_CREDENTIAL_BACKEND"] = "file";
-    } else env["KIRO_API_KEY"] = secret;
-    const child = spawnSync(binary, childArgs, { stdio: "inherit", env });
-    if (child.error) throw new ConfigError(child.error.message);
-    return { code: child.status ?? (child.signal ? 128 : 1), message: "", reverse: new ReverseLog(), handled: true };
-  } catch (err) {
-    if (err instanceof CcswapError) return failed(err);
-    return failed(err);
+    env["META_API_KEY"] = secret;
+    env["TBH_CREDENTIAL_BACKEND"] = "file";
+    delete env["KIRO_API_KEY"];
+    return await runInteractive(binary, childArgs, env);
+  } catch {
+    return unhandled();
+  }
+}
+
+async function runInteractive(binary: string, args: string[], env: NodeJS.ProcessEnv): Promise<UseCaseResult> {
+  try {
+    const child = spawn(binary, args, { stdio: "inherit", env });
+    const [code, signal] = await once(child, "close") as [number | null, NodeJS.Signals | null];
+    if (code !== null) return { code, message: "", reverse: new ReverseLog(), handled: true };
+    const signalNumber = signal ? os.constants.signals[signal] ?? 0 : 0;
+    return { code: signalNumber ? 128 + signalNumber : 1, message: "", reverse: new ReverseLog(), handled: true };
+  } catch {
+    return unhandled();
   }
 }
 
