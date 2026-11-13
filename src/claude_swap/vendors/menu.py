@@ -13,7 +13,6 @@ is not clickable, for the same reason it is process-scoped.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
 
 from claude_swap.vendors.core import AccountView, UsageResult, UsageState, UsageWindow
 from claude_swap.vendors.overview import (
@@ -101,18 +100,6 @@ def switchable(
     return False
 
 
-def _ago(ts: float | None, now: float) -> str:
-    if not ts:
-        return "never"
-    age = max(0, int(now - ts))
-    span = (
-        f"{age // 3600}h ago" if age >= 3600 else f"{age // 60}m ago" if age >= 60 else "just now"
-    )
-    return f"{datetime.fromtimestamp(ts).strftime('%H:%M')} ({span})"
-
-
-
-
 def _countdown(window: UsageWindow, now: float) -> str | None:
     """Live `3d 15h` until this window resets; None when unknown or passed.
 
@@ -179,8 +166,6 @@ def usage_rows(tool: str, result: UsageResult, now: float, indent: str = "") -> 
             rows.append(MenuRow(f"{indent}    {reset}", tool))
     # No state or reason row: a past reading shows its numbers above with no label,
     # and a bare failure shows no usage rows at all (callers render "—").
-    if result.observed_at:
-        rows.append(MenuRow(f"{indent}Updated {_ago(result.observed_at, now)}", tool))
     return rows
 
 

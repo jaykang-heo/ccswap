@@ -74,11 +74,3 @@ def test_unusable_statusline_input_writes_nothing(tmp_path):
     assert live_rate_limits.record({}, tmp_path) is None
     assert live_rate_limits.record({"seven_day": {"resets_at": 1795107600}}, tmp_path) is None
     assert live_rate_limits.load(tmp_path, NOW) == []
-
-
-def test_menu_row_names_the_age_of_a_frozen_measurement():
-    usage = {"five_hour": {"pct": 28.0}, "seven_day": {"pct": 5.0}}
-
-    assert usage_summary(usage, NOW, NOW - 79 * 60).endswith(" · 1h ago")
-    assert "ago" not in usage_summary(usage, NOW, NOW - 60)
-    assert usage_summary(usage, NOW, NOW - 600).endswith(" · 10m ago")
