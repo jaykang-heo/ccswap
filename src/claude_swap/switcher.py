@@ -27,7 +27,7 @@ from claude_swap.exceptions import (
     SwitchError,
     ValidationError,
 )
-from claude_swap import login_expiry, oauth, pace
+from claude_swap import live_rate_limits, login_expiry, oauth, pace
 from claude_swap.claude_locks import claude_config_lock, claude_credentials_lock
 from claude_swap.json_output import (
     SCHEMA_VERSION,
@@ -5524,10 +5524,15 @@ class ClaudeAccountSwitcher:
                 ):
                     sentinels[num] = USAGE_RELOGIN_REQUIRED
 
-        return {
-            num: with_sentinel(entries[num], sentinels.get(num))
-            for num in info_by_num
-        }
+        now = store.clock()
+        return live_rate_limits.overlay(
+            {
+                num: with_sentinel(entries[num], sentinels.get(num))
+                for num in info_by_num
+            },
+            live_rate_limits.load(self.backup_dir, now),
+            now,
+        )
 
     def _heal_active_quarantine_from_live(
         self,
