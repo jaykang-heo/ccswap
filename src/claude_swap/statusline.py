@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from claude_swap import paths
+from claude_swap import live_rate_limits, paths
 from claude_swap.settings import load_ui_settings
 from claude_swap.tui.data import present_alias, present_email
 from claude_swap.usage_store import UsageStore
@@ -302,6 +302,7 @@ def main() -> int:
         if not isinstance(parsed, dict):
             raise ValueError("stdin is not a JSON object")
         data = parsed
+        live_rate_limits.record(data.get("rate_limits") or {}, paths.get_backup_root())
         ui = load_ui_settings(paths.get_backup_root())
         # `auto` can't probe the terminal from a pipe: default to dark.
         text = render(data, LIGHT if ui.theme == "light" else DARK, mask=ui.mask)

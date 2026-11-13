@@ -28,7 +28,7 @@ from dataclasses import asdict, dataclass, fields, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
-from claude_swap import login_expiry, pace
+from claude_swap import login_expiry, pace, poll_policy
 from claude_swap.exceptions import ClaudeSwitchError, CredentialReadError
 from claude_swap.printer import warning
 from claude_swap.switcher import SENTINEL_NOTES
@@ -323,7 +323,32 @@ def usage_summary(
     spend = usage.get("spend")
     if isinstance(spend, dict) and isinstance(spend.get("pct"), (int, float)):
         parts.append(f"$ {spend['pct']:.0f}%")
-    return " · ".join(parts) if parts else "usage unavailable"
+    if not parts:
+        return "usage unavailable"
+    age = _age_note(fetched_at, now)
+    if age:
+        parts.append(age)
+    return " · ".join(parts)
+
+
+def _age_note(fetched_at: float | None, now: float) -> str | None:
+    """"79m ago" once a measurement is older than the polling cadence.
+
+    Inside the serve TTL the numbers are current by design; past it they are
+    a frozen last-good (429 backoff, failed refresh) and must not pass for live.
+    """
+    if fetched_at is None:
+        return None
+    age = now - fetched_at
+    if age < poll_policy.SERVE_TTL_S:
+        return None
+    minutes = int(age // 60)
+    if minutes < 60:
+        return f"{minutes}m ago"
+    hours = minutes // 60
+    if hours < 48:
+        return f"{hours}h ago"
+    return f"{hours // 24}d ago"
 
 
 def format_account_label(
