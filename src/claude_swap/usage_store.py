@@ -64,6 +64,21 @@ CLAIM_TTL_S = 90.0  # in-flight claim window: skip just-claimed accounts
 LEGACY_CLAIM_TTL_S = 10.0  # additive-schema overlap with older collectors
 
 
+_RESET_GRANT_KEYS = ("reset_credits", "fable_reset_credits", "reset_grants_seen")
+
+
+def _carry_reset_grants(previous: object, usage: object) -> object:
+    """Keep the last reset-grant answer across polls that did not ask for one.
+
+    Reset grants are fetched only every ``oauth.RESET_GRANTS_CHECK_S``; a plain
+    poll's usage carries no answer, so the stored one stays until a fresh answer
+    (marked ``reset_grants_seen``) replaces it."""
+    if not isinstance(usage, dict) or not isinstance(previous, dict) or usage.get("reset_grants_seen"):
+        return usage
+    carried = {key: previous[key] for key in _RESET_GRANT_KEYS if key in previous and key not in usage}
+    return {**usage, **carried} if carried else usage
+
+
 def _live_claim(
     claim_until: float | None, last_attempt_at: float | None, now: float
 ) -> bool:
@@ -1133,7 +1148,7 @@ class UsageStore:
                 return
             row["lastAttemptAt"] = now
             if rec.error is None:
-                row["lastGood"] = rec.usage
+                row["lastGood"] = _carry_reset_grants(row.get("lastGood"), rec.usage)
                 row["fetchedAt"] = now
                 # Replace the old, possibly due plan in the outcome transaction
                 # so no collector can slip into a record→replan gap.
@@ -1241,7 +1256,7 @@ class UsageStore:
             fetched_at = now - max(0.0, age_s)
             stored = _num_or_none(row.get("fetchedAt"))
             if stored is None or fetched_at > stored:
-                row["lastGood"] = usage
+                row["lastGood"] = _carry_reset_grants(row.get("lastGood"), usage)
                 row["fetchedAt"] = fetched_at
                 stored = fetched_at
                 adopted.add(num)

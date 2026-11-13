@@ -11,10 +11,12 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from datetime import datetime, timezone
 
 from claude_swap.printer import warning as print_warning
@@ -432,17 +434,64 @@ def claude_code_version() -> str | None:
     return _claude_code_version_at(os.path.realpath(path)) if path else None
 
 
-def request_usage_data(access_token: str) -> dict:
-    """Request raw utilization data from the Anthropic usage API."""
-    # ``cedar_ember=1`` adds the banked limit-reset grants. The server only
-    # reports them to a current Claude Code client (else ineligible_reason
-    # "surface" or "cli_version"), so the request names that client.
-    url = "https://api.anthropic.com/api/oauth/usage?cedar_ember=1"
-    version = claude_code_version()
+# The endpoint budgets ~30 requests an hour per identity and UA class (see
+# poll_policy). Reset grants need a Claude Code UA, which shares its class with
+# the account's live Claude Code sessions, so ccswap asks for them only this
+# often and polls under its own UA otherwise (2026-11-13: an active account
+# polled under the Claude Code UA drew an hour-long http-429).
+RESET_GRANTS_CHECK_S = 6 * 3600.0
+
+
+def _reset_checks_path() -> Path:
+    from claude_swap import paths
+
+    return paths.get_backup_root() / "cache" / "reset_grants_checked.json"
+
+
+def _reset_checks() -> dict:
+    try:
+        data = json.loads(_reset_checks_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def reset_grants_due(account_num: str, now: float | None = None) -> bool:
+    last = _reset_checks().get(str(account_num))
+    if not isinstance(last, (int, float)):
+        return True
+    return (time.time() if now is None else now) - last >= RESET_GRANTS_CHECK_S
+
+
+def _mark_reset_grants_checked(account_num: str) -> None:
+    path = _reset_checks_path()
+    checks = _reset_checks()
+    checks[str(account_num)] = time.time()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(checks), encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
+
+def request_usage_data(access_token: str, with_resets: bool = False) -> dict:
+    """Request raw utilization data from the Anthropic usage API.
+
+    ``with_resets`` adds the banked limit-reset grants (``cedar_ember=1``),
+    which the server reports only to a current Claude Code client (else
+    ineligible_reason "surface" or "cli_version")."""
+    url = "https://api.anthropic.com/api/oauth/usage"
+    user_agent = "claude-swap/1.0"
+    version = claude_code_version() if with_resets else None
+    if version:
+        url += "?cedar_ember=1"
+        user_agent = f"claude-cli/{version} (external, cli)"
     headers = {
         "Authorization": f"Bearer {access_token}",
         "anthropic-beta": OAUTH_BETA_HEADER,
-        "User-Agent": f"claude-cli/{version} (external, cli)" if version else "claude-swap/1.0",
+        "User-Agent": user_agent,
     }
     req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=5) as resp:
@@ -580,6 +629,9 @@ def build_usage_result(data: dict) -> dict | None:
             except (TypeError, ValueError) as e:
                 _logger.debug("extra_usage parse failed: %r", e)
 
+    if data.get("cedar_ember") is not None:
+        # Marks a fresh reset answer, so the store does not carry an older one over it.
+        result["reset_grants_seen"] = True
     for key, fable in (("reset_credits", False), ("fable_reset_credits", True)):
         credits = _claude_reset_credits(data.get("cedar_ember"), fable=fable)
         if credits is not None:
@@ -800,8 +852,11 @@ def try_fetch_usage_for_account(
         # A transient refresh failure falls through to try the (expired) token;
         # the 401 path below retries the refresh.
 
+    with_resets = reset_grants_due(account_num)
     try:
-        data = request_usage_data(access_token)
+        data = request_usage_data(access_token, with_resets=with_resets)
+        if with_resets:
+            _mark_reset_grants_checked(account_num)
         return UsageOutcome(build_usage_result(data))
     except urllib.error.HTTPError as e:
         kind, retry_after = _classify_usage_error(e)
