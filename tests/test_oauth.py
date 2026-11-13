@@ -1615,10 +1615,34 @@ class TestClaudeResetCredits:
 
         with patch("claude_swap.oauth.claude_code_version", return_value="2.1.323"), \
              patch("claude_swap.oauth.urllib.request.urlopen", side_effect=fake_urlopen):
-            oauth.request_usage_data("sk-test-token")
+            oauth.request_usage_data("sk-test-token", with_resets=True)
 
         assert "cedar_ember=1" in seen["url"]
         assert seen["ua"].startswith("claude-cli/2.1.323")
+
+        # A plain poll keeps ccswap's own UA, so it never spends the budget the
+        # account's live Claude Code sessions draw on (2026-11-13: http-429).
+        with patch("claude_swap.oauth.claude_code_version", return_value="2.1.323"), \
+             patch("claude_swap.oauth.urllib.request.urlopen", side_effect=fake_urlopen):
+            oauth.request_usage_data("sk-test-token")
+
+        assert "cedar_ember" not in seen["url"]
+        assert seen["ua"] == "claude-swap/1.0"
+
+    def test_reset_grants_asked_once_per_interval(self, tmp_path):
+        asked = []
+
+        def fake_request(token, with_resets=False):
+            asked.append(with_resets)
+            return {"five_hour": {"utilization": 1.0, "resets_at": None}}
+
+        creds = TestTryFetchUsageOutcome._make_credentials()
+        with patch("claude_swap.oauth._reset_checks_path", return_value=tmp_path / "checked.json"), \
+             patch("claude_swap.oauth.request_usage_data", side_effect=fake_request):
+            oauth.try_fetch_usage_for_account("1", "a@b.c", creds, is_active=True)
+            oauth.try_fetch_usage_for_account("1", "a@b.c", creds, is_active=True)
+            oauth.try_fetch_usage_for_account("2", "b@b.c", creds, is_active=True)
+        assert asked == [True, False, True]
 
     def test_eligible_grants_become_reset_credits(self):
         data = {"cedar_ember": {

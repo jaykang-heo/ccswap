@@ -672,3 +672,9 @@ def test_usage_summary_hides_fable_unless_model_limits_shown():
     shown = menubar.usage_summary(usage, _NOW, show_scoped=True)
     assert "Fable resets 2 (expires 2d 0h)" in shown
     assert "Fable 18%" in shown
+
+
+def test_usage_summary_shows_no_measurement_age():
+    # The captain does not want "· 8m ago" on account rows (2026-11-13).
+    old = _NOW - 3 * 3600
+    assert "ago" not in menubar.usage_summary({"five_hour": {"pct": 10.0}}, _NOW, fetched_at=old)
