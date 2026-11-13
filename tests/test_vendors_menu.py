@@ -74,7 +74,7 @@ def test_kiro_section_title_and_rows_carry_real_numbers_and_reset():
     assert section.title == "Kiro CLI · credits 1,136/2,000 (56.8%)"
     text = "\n".join(labels(section))
     assert "Plan: KIRO PRO+" in text and "1,136 of 2,000 credits used (56.8%)" in text
-    assert "resets on 2099-12-01" in text and "Updated" in text and "2m ago" in text
+    assert "resets on 2099-12-01" in text and "Updated" not in text and "ago" not in text
     assert any(r.action == "refresh" for r in section.rows if r)
     assert any(r.action == "open" and r.url.startswith("https://") for r in section.rows if r)
 
