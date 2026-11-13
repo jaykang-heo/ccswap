@@ -29,6 +29,7 @@ batch, not one request.
 from __future__ import annotations
 
 import json
+import logging
 import time
 import uuid
 from typing import Literal
@@ -49,6 +50,8 @@ from claude_swap.poll_policy import (
 )
 from claude_swap.settings import atomic_write_json
 
+_logger = logging.getLogger("claude-swap")
+
 SCHEMA_VERSION = 2
 
 # Freshness is the reader's judgment per purpose, not a global TTL.
@@ -64,7 +67,9 @@ CLAIM_TTL_S = 90.0  # in-flight claim window: skip just-claimed accounts
 LEGACY_CLAIM_TTL_S = 10.0  # additive-schema overlap with older collectors
 
 
-_RESET_GRANT_KEYS = ("reset_credits", "fable_reset_credits", "reset_grants_seen")
+_RESET_GRANT_KEYS = (
+    "reset_credits", "fable_reset_credits", "reset_grants_seen", "reset_grants_asked",
+)
 
 
 def _carry_reset_grants(previous: object, usage: object) -> object:
@@ -921,7 +926,15 @@ class UsageStore:
             and row.get("organizationUuid", "") == identity[1]
         )
 
-    def _fresh_row(self, identity: Identity) -> dict:
+    def _fresh_row(self, identity: Identity, replaced: object = None) -> dict:
+        if isinstance(replaced, dict) and replaced.get("lastGood") is not None:
+            # A replaced measurement takes its reset answer with it; log the
+            # identity change so a later missing-resets report has its writer.
+            _logger.warning(
+                "usage row replaced: stored identity %s/%s, writer %s/%s",
+                replaced.get("email"), replaced.get("organizationUuid", ""),
+                identity[0], identity[1],
+            )
         return {"email": identity[0], "organizationUuid": identity[1]}
 
     # -- read model -----------------------------------------------------------
@@ -1031,7 +1044,7 @@ class UsageStore:
             for num in nums:
                 identity = identities[num]
                 if not self._matches(rows.get(num), identity):
-                    rows[num] = self._fresh_row(identity)
+                    rows[num] = self._fresh_row(identity, rows.get(num))
                 mutator(num, rows[num])
             self._write_rows(rows)
 
@@ -1097,7 +1110,7 @@ class UsageStore:
                 identity = identities[num]
                 row = rows.get(num)
                 if not self._matches(row, identity):
-                    rows[num] = row = self._fresh_row(identity)
+                    rows[num] = row = self._fresh_row(identity, row)
                 else:
                     assert isinstance(row, dict)
                     if not _row_eligible(
@@ -1208,7 +1221,7 @@ class UsageStore:
                 ):
                     continue
                 elif not self._matches(row, identity):
-                    rows[num] = row = self._fresh_row(identity)
+                    rows[num] = row = self._fresh_row(identity, row)
                 assert isinstance(row, dict)
                 apply(num, row)
             if accepted:
