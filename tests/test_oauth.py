@@ -1583,3 +1583,65 @@ class TestLoginExpiresAtIso:
     ])
     def test_anything_but_a_positive_epoch_is_unknown(self, creds):
         assert oauth.login_expires_at_iso(creds) is None
+
+
+class TestClaudeResetCredits:
+    """Claude Code's banked limit resets ride the usage API's ``cedar_ember`` block."""
+
+    @staticmethod
+    def _grant(**over):
+        grant = {
+            "id": "full-reset-2611",
+            "label": "One full limit reset (November 2026)",
+            "resets_total": 1,
+            "resets_left": 1,
+            "ends_at": "2026-12-10T22:00:00+00:00",
+            "paused": False,
+        }
+        grant.update(over)
+        return grant
+
+    def test_request_asks_for_reset_grants_as_claude_code(self):
+        seen = {}
+
+        def fake_urlopen(req, timeout):
+            seen["url"] = req.full_url
+            seen["ua"] = req.get_header("User-agent")
+            resp = MagicMock()
+            resp.read.return_value = b"{}"
+            resp.__enter__ = lambda s: s
+            resp.__exit__ = MagicMock(return_value=False)
+            return resp
+
+        with patch("claude_swap.oauth.claude_code_version", return_value="2.1.323"), \
+             patch("claude_swap.oauth.urllib.request.urlopen", side_effect=fake_urlopen):
+            oauth.request_usage_data("sk-test-token")
+
+        assert "cedar_ember=1" in seen["url"]
+        assert seen["ua"].startswith("claude-cli/2.1.323")
+
+    def test_eligible_grants_become_reset_credits(self):
+        data = {"cedar_ember": {
+            "eligible": True,
+            "grants": [
+                self._grant(),
+                self._grant(id="b", resets_left=2, ends_at="2026-12-01T00:00:00+00:00"),
+                self._grant(id="paused", paused=True, ends_at="2026-11-20T00:00:00+00:00"),
+                self._grant(id="spent", resets_left=0, ends_at="2026-11-15T00:00:00+00:00"),
+            ],
+        }}
+        result = oauth.build_usage_result(data)
+        assert result["reset_credits"] == {
+            "available": 3,
+            "expires_at": "2026-12-01T00:00:00Z",
+        }
+
+    def test_eligible_without_grants_reports_zero(self):
+        result = oauth.build_usage_result({"cedar_ember": {"eligible": True, "grants": []}})
+        assert result["reset_credits"] == {"available": 0}
+
+    def test_ineligible_or_missing_block_adds_nothing(self):
+        five = {"utilization": 10.0, "resets_at": None}
+        for block in (None, {"eligible": False, "ineligible_reason": "surface", "grants": []}):
+            result = oauth.build_usage_result({"five_hour": five, "cedar_ember": block})
+            assert "reset_credits" not in result

@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import functools
 import logging
+import os
+import re
+import shutil
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -397,13 +402,47 @@ def fresh_reset_strings(window: dict) -> tuple[str, str] | None:
     return None
 
 
+_VERSION_RE = re.compile(r"\d+\.\d+\.\d+")
+
+
+@functools.lru_cache(maxsize=4)
+def _claude_code_version_at(path: str) -> str | None:
+    # The native installer names each binary after its version
+    # (~/.local/share/claude/versions/2.1.323); other installs answer --version.
+    name = os.path.basename(path)
+    if _VERSION_RE.fullmatch(name):
+        return name
+    try:
+        out = subprocess.run(
+            [path, "--version"], capture_output=True, text=True, timeout=10
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    match = _VERSION_RE.search(out)
+    return match.group(0) if match else None
+
+
+def claude_code_version() -> str | None:
+    """Installed Claude Code version, re-resolved when the binary moves (updates)."""
+    # A launchd-started menubar may lack ~/.local/bin (the native installer's
+    # link) on its PATH.
+    path = shutil.which("claude") or shutil.which(
+        "claude", path=os.path.expanduser("~/.local/bin")
+    )
+    return _claude_code_version_at(os.path.realpath(path)) if path else None
+
+
 def request_usage_data(access_token: str) -> dict:
     """Request raw utilization data from the Anthropic usage API."""
-    url = "https://api.anthropic.com/api/oauth/usage"
+    # ``cedar_ember=1`` adds the banked limit-reset grants. The server only
+    # reports them to a current Claude Code client (else ineligible_reason
+    # "surface" or "cli_version"), so the request names that client.
+    url = "https://api.anthropic.com/api/oauth/usage?cedar_ember=1"
+    version = claude_code_version()
     headers = {
         "Authorization": f"Bearer {access_token}",
         "anthropic-beta": OAUTH_BETA_HEADER,
-        "User-Agent": "claude-swap/1.0",
+        "User-Agent": f"claude-cli/{version} (external, cli)" if version else "claude-swap/1.0",
     }
     req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=5) as resp:
@@ -464,6 +503,32 @@ def _log_usage_failure(
 
 
 
+def _claude_reset_credits(block: object) -> dict | None:
+    """``cedar_ember`` grants as the ``reset_credits`` shape Codex already uses:
+    the usable resets left and the earliest expiry among them."""
+    if not isinstance(block, dict) or block.get("eligible") is not True:
+        return None
+    live = [
+        g for g in block.get("grants") or []
+        if isinstance(g, dict)
+        and isinstance(g.get("resets_left"), int)
+        and g["resets_left"] > 0
+        and not g.get("paused")
+    ]
+    result: dict = {"available": sum(g["resets_left"] for g in live)}
+    expiries = []
+    for g in live:
+        try:
+            ends = datetime.fromisoformat(str(g.get("ends_at")).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if ends.tzinfo is not None:
+            expiries.append(ends.astimezone(timezone.utc))
+    if expiries:
+        result["expires_at"] = min(expiries).isoformat().replace("+00:00", "Z")
+    return result
+
+
 def build_usage_result(data: dict) -> dict | None:
     """Normalize raw usage API data into the structure used by the CLI."""
     _logger.debug("Usage API response: %s", json.dumps(data, indent=2))
@@ -509,6 +574,10 @@ def build_usage_result(data: dict) -> dict | None:
                 result["spend"] = spend_entry
             except (TypeError, ValueError) as e:
                 _logger.debug("extra_usage parse failed: %r", e)
+
+    reset_credits = _claude_reset_credits(data.get("cedar_ember"))
+    if reset_credits is not None:
+        result["reset_credits"] = reset_credits
 
     # Per-model weekly limits live in the newer ``limits`` array as
     # ``weekly_scoped`` entries carrying a ``scope.model.display_name`` (e.g.
