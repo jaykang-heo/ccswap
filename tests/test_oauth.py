@@ -1645,8 +1645,8 @@ class TestClaudeResetCredits:
             oauth.try_fetch_usage_for_account("2", "b@b.c", creds, is_active=True)
         assert asked == [True, False, True]
 
-    def test_an_asked_check_is_an_answer_even_when_the_server_has_none(self, tmp_path):
-        # The row must read as answered, or the collector asks again every poll
+    def test_an_asked_check_is_recorded_even_when_the_server_has_none(self, tmp_path):
+        # The row must read as asked, or the collector asks again every poll
         # under the Claude Code UA.
         creds = TestTryFetchUsageOutcome._make_credentials()
         data = {"five_hour": {"utilization": 1.0, "resets_at": None}, "cedar_ember": None}
@@ -1654,7 +1654,8 @@ class TestClaudeResetCredits:
              patch("claude_swap.oauth.claude_code_version", return_value="2.1.323"), \
              patch("claude_swap.oauth.request_usage_data", return_value=data):
             usage = oauth.try_fetch_usage_for_account("1", "a@b.c", creds, is_active=True).usage
-        assert usage["reset_grants_seen"] is True
+        assert usage["reset_grants_asked"] is True
+        assert "reset_grants_seen" not in usage  # a null answer keeps stored grants
 
     def test_without_claude_code_no_check_is_recorded(self, tmp_path):
         creds = TestTryFetchUsageOutcome._make_credentials()
@@ -1663,7 +1664,7 @@ class TestClaudeResetCredits:
              patch("claude_swap.oauth.claude_code_version", return_value=None), \
              patch("claude_swap.oauth.request_usage_data", return_value=data):
             usage = oauth.try_fetch_usage_for_account("1", "a@b.c", creds, is_active=True).usage
-            assert "reset_grants_seen" not in usage
+            assert "reset_grants_asked" not in usage
             assert oauth.reset_grants_due("1")
 
     def test_a_forgotten_check_is_due_again(self, tmp_path):

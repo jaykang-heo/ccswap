@@ -1887,3 +1887,14 @@ class TestResetGrantsCarry:
         store.record({"1": FetchRecord(usage={**USAGE, "reset_grants_seen": True, "reset_credits": self.RESETS})}, IDENT)
         store.record({"1": FetchRecord(usage={**USAGE, "reset_grants_seen": True})}, IDENT)
         assert "reset_credits" not in store.entries(IDENT)["1"].last_good
+
+    def test_asked_null_answer_keeps_stored_grants(self, store):
+        store.record({"1": FetchRecord(usage={**USAGE, "reset_grants_seen": True, "reset_credits": self.RESETS})}, IDENT)
+        store.record({"1": FetchRecord(usage={**USAGE, "reset_grants_asked": True})}, IDENT)
+        assert store.entries(IDENT)["1"].last_good["reset_credits"] == self.RESETS
+
+    def test_replacing_a_measured_row_is_logged(self, store, caplog):
+        store.record({"1": FetchRecord(usage={**USAGE, "reset_credits": self.RESETS})}, IDENT)
+        with caplog.at_level("WARNING", logger="claude-swap"):
+            store.record({"1": FetchRecord(usage=USAGE)}, {"1": ("other@x.com", "")})
+        assert "usage row replaced" in caplog.text

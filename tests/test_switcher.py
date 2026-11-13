@@ -4537,9 +4537,10 @@ class TestDeadTokenQuarantine:
         switcher = ClaudeAccountSwitcher()
         switcher._setup_directories()
         ident = {"2": ("test@example.com", "")}
-        switcher._usage_store.record(
-            {"2": FetchRecord(usage={"five_hour": {"pct": 1.0}})}, ident
-        )
+        store = switcher._usage_store
+        store.clock = lambda: time.time() - 7200  # an old measurement is due again
+        store.record({"2": FetchRecord(usage={"five_hour": {"pct": 1.0}})}, ident)
+        store.clock = time.time
         creds = json.dumps({"claudeAiOauth": {
             "accessToken": "at", "refreshToken": "rt",
             "expiresAt": (time.time() + 3600) * 1000,

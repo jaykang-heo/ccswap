@@ -464,9 +464,22 @@ def reset_grants_due(account_num: str, now: float | None = None) -> bool:
 
 
 def _mark_reset_grants_checked(account_num: str) -> None:
+    _write_reset_check(account_num, time.time())
+
+
+def forget_reset_grants_check(account_num: str) -> None:
+    """Make the next fetch ask for reset grants: the stored row lost its answer."""
+    _write_reset_check(account_num, None)
+
+
+def _write_reset_check(account_num: str, checked_at: float | None) -> None:
     path = _reset_checks_path()
     checks = _reset_checks()
-    checks[str(account_num)] = time.time()
+    if checked_at is None:
+        if checks.pop(str(account_num), None) is None:
+            return
+    else:
+        checks[str(account_num)] = checked_at
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
@@ -852,12 +865,19 @@ def try_fetch_usage_for_account(
         # A transient refresh failure falls through to try the (expired) token;
         # the 401 path below retries the refresh.
 
-    with_resets = reset_grants_due(account_num)
+    # Without a Claude Code binary the request cannot ask, so nothing is checked.
+    with_resets = reset_grants_due(account_num) and claude_code_version() is not None
     try:
         data = request_usage_data(access_token, with_resets=with_resets)
+        result = build_usage_result(data)
         if with_resets:
             _mark_reset_grants_checked(account_num)
-        return UsageOutcome(build_usage_result(data))
+            if result is not None:
+                # Marks the row as asked even when cedar_ember came back null,
+                # so the collector does not re-ask it every poll; a null answer
+                # still leaves the stored grants in place (usage_store carry).
+                result["reset_grants_asked"] = True
+        return UsageOutcome(result)
     except urllib.error.HTTPError as e:
         kind, retry_after = _classify_usage_error(e)
         if (

@@ -5502,6 +5502,14 @@ class ClaudeAccountSwitcher:
 
         if claims:
             pre = entries
+            for num in claims:
+                # A row with no reset answer asks again now, not when the 6h
+                # mark lapses (2026-11-13: account 4 showed no resets for hours).
+                last_good = pre[num].last_good
+                if not (isinstance(last_good, dict) and (
+                    last_good.get("reset_grants_seen") or last_good.get("reset_grants_asked")
+                )):
+                    oauth.forget_reset_grants_check(num)
             records = self._run_usage_fetches(
                 [info_by_num[num] for num in claims], pre
             )
