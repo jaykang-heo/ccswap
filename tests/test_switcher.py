@@ -4530,6 +4530,29 @@ class TestDeadTokenQuarantine:
         assert entries["2"].sentinel == USAGE_RELOGIN_REQUIRED
         fetch.assert_not_called()  # quarantined: no endless 401/429 loop
 
+    def test_collector_reasks_reset_grants_a_stored_row_lacks(self, temp_home):
+        # 2026-11-13: account 4's row lost its reset answer while the 6h mark
+        # said it was answered, so the menu showed no resets for hours.
+        from claude_swap.usage_store import FetchRecord
+        switcher = ClaudeAccountSwitcher()
+        switcher._setup_directories()
+        ident = {"2": ("test@example.com", "")}
+        switcher._usage_store.record(
+            {"2": FetchRecord(usage={"five_hour": {"pct": 1.0}})}, ident
+        )
+        creds = json.dumps({"claudeAiOauth": {
+            "accessToken": "at", "refreshToken": "rt",
+            "expiresAt": (time.time() + 3600) * 1000,
+        }})
+        info = [(2, "test@example.com", "Org", "", False, creds, "")]
+
+        with patch("claude_swap.oauth.forget_reset_grants_check") as forget, \
+             patch.object(switcher, "_run_usage_fetches", return_value={}) as run:
+            switcher._collect_usage_entries(info, fetch={"2"})
+
+        run.assert_called_once()
+        forget.assert_called_once_with("2")
+
     def test_relogin_surfaces_same_pass_on_invalid_grant(self, temp_home):
         # A fetch that returns invalid_grant crosses the dead threshold this pass;
         # the pre-fetch quarantine scan couldn't see it, so the collector must
