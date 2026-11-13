@@ -230,7 +230,10 @@ def _rolled_weekly_window(window: dict | None, now: float) -> dict | None:
 
 
 def usage_summary(
-    usage: dict | str | None, now: float | None = None, fetched_at: float | None = None
+    usage: dict | str | None,
+    now: float | None = None,
+    fetched_at: float | None = None,
+    show_scoped: bool = True,
 ) -> str:
     """One-line usage summary for an account row (reset countdown computed live).
 
@@ -268,16 +271,20 @@ def usage_summary(
             if countdown:
                 seg += f" ({countdown})"  # time until this window resets
             parts.append(seg)
-    reset_credits = usage.get("reset_credits")
-    if isinstance(reset_credits, dict) and isinstance(
-        reset_credits.get("available"), int
-    ):
-        seg = f"Resets {reset_credits['available']}"
-        expiry = {"resets_at": reset_credits.get("expires_at")}
-        countdown = _live_countdown(expiry, now)
-        if countdown:
-            seg += f" (expires {countdown})"
-        parts.append(seg)
+    resets = [("reset_credits", "Resets")]
+    if show_scoped:
+        resets.append(("fable_reset_credits", "Fable resets"))
+    for key, label in resets:
+        reset_credits = usage.get(key)
+        if isinstance(reset_credits, dict) and isinstance(
+            reset_credits.get("available"), int
+        ):
+            seg = f"{label} {reset_credits['available']}"
+            expiry = {"resets_at": reset_credits.get("expires_at")}
+            countdown = _live_countdown(expiry, now)
+            if countdown:
+                seg += f" (expires {countdown})"
+            parts.append(seg)
     credits = usage.get("credits")
     if isinstance(credits, dict):
         if credits.get("limit_reached") is True:
@@ -307,7 +314,7 @@ def usage_summary(
         if seg:
             parts.append(seg)
     # Per-model weekly limits (e.g. Fable), from the usage API's ``limits`` array.
-    for window in usage.get("scoped") or []:
+    for window in usage.get("scoped") or [] if show_scoped else []:
         window = _rolled_weekly_window(window, now)  # weekly cadence, same roll-forward
         pace_result = pace.compute_pace(window, fetched_at=fetched_at)  # against the rolled window, see above
         if isinstance(window, dict) and isinstance(window.get("pct"), (int, float)) and window.get("name"):
@@ -359,11 +366,12 @@ def format_account_label(
     alias: str | None = None,
     disabled: bool = False,
     fetched_at: float | None = None,
+    show_scoped: bool = True,
 ) -> str:
     """Build one account row's menu label."""
     label = f"{alias}  ({email})" if alias else email
     marker = "  (disabled)" if disabled else ""
-    return f"{num}  {label}{marker}  {usage_summary(usage, now, fetched_at)}"
+    return f"{num}  {label}{marker}  {usage_summary(usage, now, fetched_at, show_scoped)}"
 
 
 def _local_part(email: str, limit: int = 12) -> str:
@@ -1189,7 +1197,8 @@ def run(switcher) -> int:
             for num, email, is_active, display, _last_good, alias, disabled, fetched_at in self.snapshot["accounts"]:
                 item = rumps.MenuItem(
                     format_account_label(
-                        num, email, display, alias=alias, disabled=disabled, fetched_at=fetched_at
+                        num, email, display, alias=alias, disabled=disabled, fetched_at=fetched_at,
+                        show_scoped=self.settings.title_scoped,
                     ),
                     callback=self._make_switch_to(num),
                 )
@@ -1236,7 +1245,7 @@ def run(switcher) -> int:
                 return rows
             for num, email, is_active, display, _lg, alias, disabled, fetched_at in self.codex_snapshot["accounts"]:
                 item = rumps.MenuItem(
-                    format_account_label(num, email, display, alias=alias, disabled=disabled, fetched_at=fetched_at),
+                    format_account_label(num, email, display, alias=alias, disabled=disabled, fetched_at=fetched_at, show_scoped=self.settings.title_scoped),
                     callback=self._make_codex_switch_to(num),
                 )
                 item.state = 1 if is_active else 0
@@ -1381,7 +1390,8 @@ def run(switcher) -> int:
             for num, email, is_active, display, _last_good, alias, disabled, fetched_at in self.codex_snapshot["accounts"]:
                 item = rumps.MenuItem(
                     format_account_label(
-                        num, email, display, alias=alias, disabled=disabled, fetched_at=fetched_at
+                        num, email, display, alias=alias, disabled=disabled, fetched_at=fetched_at,
+                        show_scoped=self.settings.title_scoped,
                     ),
                     callback=self._make_codex_switch_to(num),
                 )
@@ -1465,7 +1475,7 @@ def run(switcher) -> int:
             menu.add(title_pct)
 
             scoped_item = rumps.MenuItem(
-                "Show model limits in title", callback=self.on_toggle_scoped
+                "Show model limits", callback=self.on_toggle_scoped
             )
             scoped_item.state = 1 if self.settings.title_scoped else 0
             menu.add(scoped_item)

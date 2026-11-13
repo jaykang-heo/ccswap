@@ -503,18 +503,23 @@ def _log_usage_failure(
 
 
 
-def _claude_reset_credits(block: object) -> dict | None:
+def _claude_reset_credits(block: object, *, fable: bool) -> dict | None:
     """``cedar_ember`` grants as the ``reset_credits`` shape Codex already uses:
-    the usable resets left and the earliest expiry among them."""
+    the usable resets left and the earliest expiry among them. ``fable``
+    picks the Fable resets (``gives_back_weekly``, Claude Code's own test for
+    that kind) or every other grant; a Fable result with no grants is None."""
     if not isinstance(block, dict) or block.get("eligible") is not True:
         return None
     live = [
         g for g in block.get("grants") or []
         if isinstance(g, dict)
+        and bool(g.get("gives_back_weekly")) is fable
         and isinstance(g.get("resets_left"), int)
         and g["resets_left"] > 0
         and not g.get("paused")
     ]
+    if fable and not live:
+        return None
     result: dict = {"available": sum(g["resets_left"] for g in live)}
     expiries = []
     for g in live:
@@ -575,9 +580,10 @@ def build_usage_result(data: dict) -> dict | None:
             except (TypeError, ValueError) as e:
                 _logger.debug("extra_usage parse failed: %r", e)
 
-    reset_credits = _claude_reset_credits(data.get("cedar_ember"))
-    if reset_credits is not None:
-        result["reset_credits"] = reset_credits
+    for key, fable in (("reset_credits", False), ("fable_reset_credits", True)):
+        credits = _claude_reset_credits(data.get("cedar_ember"), fable=fable)
+        if credits is not None:
+            result[key] = credits
 
     # Per-model weekly limits live in the newer ``limits`` array as
     # ``weekly_scoped`` entries carrying a ``scope.model.display_name`` (e.g.

@@ -1636,6 +1636,21 @@ class TestClaudeResetCredits:
             "expires_at": "2026-12-01T00:00:00Z",
         }
 
+    def test_fable_grants_are_kept_apart(self):
+        data = {"cedar_ember": {
+            "eligible": True,
+            "grants": [
+                self._grant(),
+                self._grant(id="fable", resets_left=2, gives_back_weekly=True,
+                            ends_at="2026-11-20T00:00:00+00:00"),
+            ],
+        }}
+        result = oauth.build_usage_result(data)
+        assert result["reset_credits"] == {"available": 1, "expires_at": "2026-12-10T22:00:00Z"}
+        assert result["fable_reset_credits"] == {
+            "available": 2, "expires_at": "2026-11-20T00:00:00Z",
+        }
+
     def test_eligible_without_grants_reports_zero(self):
         result = oauth.build_usage_result({"cedar_ember": {"eligible": True, "grants": []}})
         assert result["reset_credits"] == {"available": 0}

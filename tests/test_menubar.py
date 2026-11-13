@@ -657,3 +657,18 @@ class TestFrameworkBuildWarning:
         # The symptom is that everything looks healthy, so say so.
         msg = menubar.framework_build_warning("Python", "uv", "26.6.2")
         assert "logs nothing" in msg
+
+
+def test_usage_summary_hides_fable_unless_model_limits_shown():
+    usage = {
+        "five_hour": {"pct": 10.0},
+        "reset_credits": {"available": 1},
+        "fable_reset_credits": {"available": 2, "expires_at": _iso(2 * 86400)},
+        "scoped": [{"name": "Fable", "pct": 18.0}],
+    }
+    hidden = menubar.usage_summary(usage, _NOW, show_scoped=False)
+    assert "Fable" not in hidden
+    assert hidden == "5h 10% · Resets 1"
+    shown = menubar.usage_summary(usage, _NOW, show_scoped=True)
+    assert "Fable resets 2 (expires 2d 0h)" in shown
+    assert "Fable 18%" in shown

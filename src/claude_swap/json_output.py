@@ -119,12 +119,13 @@ def usage_to_json(usage: dict, fetched_at: float | None = None) -> dict:
         # Codex's canonical weekly window is the same 7-day cadence as
         # Claude's seven_day, so it earns the same pace fields.
         out["weekly"] = _weekly_window_to_json(usage["weekly"], fetched_at)
-    if "reset_credits" in usage:
-        resets = usage["reset_credits"]
-        resets_out = {"available": resets["available"]}
-        if "expires_at" in resets:
-            resets_out["earliestExpiresAt"] = resets["expires_at"]
-        out["resetCredits"] = resets_out
+    for key, out_key in (("reset_credits", "resetCredits"), ("fable_reset_credits", "fableResetCredits")):
+        if key in usage:
+            resets = usage[key]
+            resets_out = {"available": resets["available"]}
+            if "expires_at" in resets:
+                resets_out["earliestExpiresAt"] = resets["expires_at"]
+            out[out_key] = resets_out
     if "credits" in usage:
         credits = usage["credits"]
         credits_out: dict = {}

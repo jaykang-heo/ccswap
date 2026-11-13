@@ -165,19 +165,20 @@ def _format_usage_lines(usage: dict, fetched_at: float | None = None) -> list[st
                 rows.append((label, f"{w['pct']:>3.0f}%   resets {clock:<12}  in {countdown}{marker}"))
             else:
                 rows.append((label, f"{w['pct']:>3.0f}%{marker}"))
-    reset_credits = usage.get("reset_credits")
-    if isinstance(reset_credits, dict) and isinstance(
-        reset_credits.get("available"), int
-    ):
-        count = reset_credits["available"]
-        body = f"{count} banked"
-        cell = oauth.fresh_reset_strings(
-            {"resets_at": reset_credits.get("expires_at")}
-        )
-        if cell:
-            countdown, clock = cell
-            body += f"   earliest expires {clock:<12}  in {countdown}"
-        rows.append(("Resets", body))
+    for key, label in (("reset_credits", "Resets"), ("fable_reset_credits", "Fable resets")):
+        reset_credits = usage.get(key)
+        if isinstance(reset_credits, dict) and isinstance(
+            reset_credits.get("available"), int
+        ):
+            count = reset_credits["available"]
+            body = f"{count} banked"
+            cell = oauth.fresh_reset_strings(
+                {"resets_at": reset_credits.get("expires_at")}
+            )
+            if cell:
+                countdown, clock = cell
+                body += f"   earliest expires {clock:<12}  in {countdown}"
+            rows.append((label, body))
     for w in usage.get("scoped") or []:
         # Per-model weekly limits (e.g. Fable). Flag ones at/over the limit so a
         # maxed model — the usual reason to switch — stands out.
