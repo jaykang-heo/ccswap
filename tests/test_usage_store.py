@@ -1871,3 +1871,19 @@ class TestAdopt:
         store.adopt({"2": (USAGE, 0.0)}, IDENT)
         row = json.loads(store.path.read_text(encoding="utf-8"))["accounts"]["2"]
         assert (row["email"], row["organizationUuid"]) == IDENT["2"]
+
+
+class TestResetGrantsCarry:
+    """Reset grants are asked for only now and then; plain polls keep the last answer."""
+
+    RESETS = {"available": 1, "expires_at": "2026-12-10T22:00:00Z"}
+
+    def test_plain_poll_keeps_last_reset_answer(self, store):
+        store.record({"1": FetchRecord(usage={**USAGE, "reset_grants_seen": True, "reset_credits": self.RESETS})}, IDENT)
+        store.record({"1": FetchRecord(usage=USAGE)}, IDENT)
+        assert store.entries(IDENT)["1"].last_good["reset_credits"] == self.RESETS
+
+    def test_fresh_reset_answer_replaces_old_one(self, store):
+        store.record({"1": FetchRecord(usage={**USAGE, "reset_grants_seen": True, "reset_credits": self.RESETS})}, IDENT)
+        store.record({"1": FetchRecord(usage={**USAGE, "reset_grants_seen": True})}, IDENT)
+        assert "reset_credits" not in store.entries(IDENT)["1"].last_good
