@@ -461,3 +461,11 @@ def test_status_has_no_tailnet_url_when_the_mapping_is_not_ours(agent, tailscale
     out = capsys.readouterr().out
     assert "Tailnet URL: none" in out
     assert "not answering" in out
+
+
+def test_dashboard_overview_fetches_legacy_tools():
+    web_server._web_overview.cache_clear()
+    try:
+        assert web_server._web_overview().legacy_fetch is True
+    finally:
+        web_server._web_overview.cache_clear()

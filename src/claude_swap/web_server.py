@@ -228,7 +228,9 @@ def claude_payload() -> dict:
 def _web_overview():
     from claude_swap.vendors.overview import Overview
 
-    return Overview(legacy_fetch=False)
+    # Codex and Antigravity are legacy tools: without fetching they only show what
+    # another surface already stored, which is nothing on a fresh machine.
+    return Overview()
 
 
 def _overview_tools() -> list[dict]:
