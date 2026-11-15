@@ -88,10 +88,23 @@ def _mapped_targets(ts: str, https_port: int) -> set[str] | None:
         for handler in (handlers or {}).values():
             proxy = handler.get("Proxy") if isinstance(handler, dict) else None
             found.add(str(proxy).rstrip("/") if proxy else "unknown handler")
+    # `serve --https` also writes a plain HTTPS listener on the port beside the
+    # Web handler. That listener is part of the mapping, not a second owner, so
+    # only a listener that forwards somewhere else counts as foreign.
     tcp = data.get("TCP") if isinstance(data.get("TCP"), dict) else {}
-    if str(https_port) in tcp:
+    listener = tcp.get(str(https_port))
+    if listener is not None and not _is_serve_listener(listener):
         found.add("tcp listener")
     return found
+
+
+def _is_serve_listener(listener: object) -> bool:
+    """A TCP entry ``tailscale serve`` makes for its own HTTPS handler."""
+    return (
+        isinstance(listener, dict)
+        and listener.get("HTTPS") is True
+        and "TCPForward" not in listener
+    )
 
 
 def _tailnet_url(ts: str, https_port: int) -> str | None:

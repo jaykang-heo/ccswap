@@ -129,13 +129,45 @@ def resolve_program() -> list[str]:
     if candidate is not None:
         absolute = Path(os.path.abspath(candidate))
         if absolute.name == "ccswap" and absolute.is_file():
-            return [str(absolute)]
+            return [_pinned(str(absolute))]
 
     which = shutil.which("ccswap")
     if which:
-        return [str(Path(os.path.abspath(which)))]
+        return [_pinned(str(Path(os.path.abspath(which))))]
 
     return [sys.executable, "-m", "claude_swap"]
+
+
+def _pinned(path: str) -> str:
+    """The path to write into the plist: the mise shim when ``path`` is a mise install."""
+    return _mise_shim(path) or path
+
+
+def _mise_shim(path: str) -> str | None:
+    """``$MISE_DATA_DIR/shims/ccswap`` when ``path`` is inside a mise install and the shim exists.
+
+    mise puts each tool under ``installs/<name>-<commit>/``, and a repin removes
+    the folder the old commit lived in. The shim keeps its path and is pointed at
+    whichever install is current, so a LaunchAgent that pins it survives a repin.
+    """
+    if "/mise/installs/" not in path:
+        return None
+    data_dir = os.environ.get("MISE_DATA_DIR") or "~/.local/share/mise"
+    shim = Path(os.path.expanduser(data_dir)) / "shims" / "ccswap"
+    return str(shim) if shim.exists() else None
+
+
+def _mise_binary_dir(program: str) -> str | None:
+    """Directory of the mise binary behind a mise shim, or None when ``program`` is no shim.
+
+    A shim is a symlink to the mise binary, so the shim alone is not enough on
+    PATH: the binary's own directory has to be there too.
+    """
+    shim = Path(program)
+    if shim.parent.name != "shims":
+        return None
+    target = Path(os.path.realpath(shim))
+    return None if target == shim else str(target.parent)
 
 
 def _path_env(program: list[str]) -> str:
@@ -144,6 +176,9 @@ def _path_env(program: list[str]) -> str:
     first = Path(program[0]).parent
     if str(first) not in ("", "."):
         dirs.append(str(first))
+    mise_bin = _mise_binary_dir(program[0])
+    if mise_bin is not None and mise_bin not in dirs:
+        dirs.append(mise_bin)
     for extra in (*_EXTRA_PATH_DIRS, *_BASE_PATH_DIRS):
         expanded = os.path.expanduser(extra)
         if expanded not in dirs:
