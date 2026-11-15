@@ -414,3 +414,36 @@ def test_web_key_set_saves_a_key_that_matches_the_account(tmp_path, monkeypatch,
     assert out.strip() == "saved web key for account 3 (a@example.com)"
     assert SECRET not in out
     assert web_usage.get_key(tmp_path, "a@example.com") == SECRET
+
+
+def test_web_key_set_lets_every_slot_of_that_email_fetch_at_once(
+    tmp_path, monkeypatch, capsys, file_keys, fetch_spy
+):
+    """A bad key parked slots 3 and 5 for ten minutes. A good key for the same
+    email must reach them on the next collect, and leave other emails parked."""
+    monkeypatch.setattr(web_usage, "validate_key", lambda key: "A@example.com")
+    web_usage._write_cache(
+        tmp_path, "3",
+        {"observedAt": NOW - 30, "error": "web-key-invalid", "retryAt": NOW + 600},
+    )
+    web_usage._write_cache(
+        tmp_path, "5",
+        {"observedAt": NOW - 30, "error": "web-key-invalid", "retryAt": NOW + 600},
+    )
+    web_usage._write_cache(
+        tmp_path, "4",
+        {"observedAt": NOW - 30, "error": "web-key-invalid", "retryAt": NOW + 600},
+    )
+    roster = [("3", "a@example.com", "org-a"), ("4", "b@example.com", "org-b"),
+              ("5", "a@example.com", "org-c")]
+    switcher = _switcher(tmp_path)
+    switcher.roster_identities.return_value = roster
+    monkeypatch.setattr(sys, "stdin", io.StringIO(SECRET + "\n"))
+
+    with patch("claude_swap.cli.ClaudeAccountSwitcher", return_value=switcher):
+        _run_web_key(monkeypatch, ["set", "3", "--stdin"])
+
+    web_usage.refresh(tmp_path, roster, NOW)
+
+    assert sorted(org for org, _key in fetch_spy) == ["org-a", "org-c"]
+    assert web_usage._cache_path(tmp_path, "4").exists()

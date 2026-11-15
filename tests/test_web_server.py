@@ -173,7 +173,11 @@ def tailscale(monkeypatch, tmp_path):
     binary = tmp_path / "Tailscale"
     binary.write_text("")
     monkeypatch.setattr(web_cli, "APP_TAILSCALE", binary)
-    state = {"serve": dict(SERVE_CONFIG_EMPTY), "serve_rc": 0}
+    state = {
+        "serve": dict(SERVE_CONFIG_EMPTY),
+        "serve_rc": 0,
+        "status": {"Self": {"DNSName": "mac.tail1234.ts.net."}},
+    }
     calls: list[list[str]] = []
 
     def run(argv, **_kwargs):
@@ -182,8 +186,7 @@ def tailscale(monkeypatch, tmp_path):
         if argv[1:] == ["serve", "status", "--json"]:
             return subprocess.CompletedProcess(argv, 0, json.dumps(state["serve"]), "")
         if argv[1:] == ["status", "--json"]:
-            body = {"Self": {"DNSName": "mac.tail1234.ts.net."}}
-            return subprocess.CompletedProcess(argv, 0, json.dumps(body), "")
+            return subprocess.CompletedProcess(argv, 0, json.dumps(state["status"]), "")
         if argv[1] == "serve" and "--bg" in argv:
             return subprocess.CompletedProcess(argv, state["serve_rc"], "", "tailnet has no HTTPS")
         return subprocess.CompletedProcess(argv, 0, "", "")
@@ -319,6 +322,61 @@ def test_status_json_reports_agent_local_and_tailnet_urls(agent, tailscale, monk
     assert report["localAnswering"] is True
     assert report["localUrl"] == "http://127.0.0.1:4592/"
     assert report["tailnetUrl"] == "https://mac.tail1234.ts.net:8443/"
+
+
+# The exact `tailscale serve status --json` a Mac prints once `install` has
+# mapped HTTPS 8443 to the dashboard: the TCP listener sits beside the Web
+# handler, and it is ours, not a foreign owner of the port.
+REAL_SERVE_STATUS_WITH_LISTENER = {
+    "TCP": {"443": {"HTTPS": True}, "8443": {"HTTPS": True}},
+    "Web": {
+        "work-mac.tail01328d.ts.net:443": {
+            "Handlers": {"/": {"Proxy": "http://127.0.0.1:4591"}}
+        },
+        "work-mac.tail01328d.ts.net:8443": {
+            "Handlers": {"/": {"Proxy": "http://127.0.0.1:4592"}}
+        },
+    },
+}
+
+
+def test_status_reports_the_tailnet_url_of_a_mapping_with_its_tcp_listener(
+    agent, tailscale, monkeypatch, capsys
+):
+    tailscale.state["serve"] = REAL_SERVE_STATUS_WITH_LISTENER
+    tailscale.state["status"] = {"Self": {"DNSName": "work-mac.tail01328d.ts.net."}}
+    monkeypatch.setattr(web_cli, "_local_answering", lambda port: True)
+    monkeypatch.setattr(web_cli, "_macos", lambda: True)
+    monkeypatch.setattr(launch_agent, "status", lambda **kw: {
+        "installed": True, "loaded": True, "pid": 42,
+    })
+
+    assert web_cli.web_command(["status"]) == 0
+
+    assert "Tailnet URL: https://work-mac.tail01328d.ts.net:8443/" in capsys.readouterr().out
+
+
+def test_install_again_over_its_own_mapping_is_not_refused(agent, tailscale, capsys):
+    tailscale.state["serve"] = REAL_SERVE_STATUS_WITH_LISTENER
+    tailscale.state["status"] = {"Self": {"DNSName": "work-mac.tail01328d.ts.net."}}
+
+    rc = web_cli.web_command(["install", "--https-port", "8443"])
+
+    assert rc == 0
+    assert len(agent.installs) == 1
+    assert "already serves" not in capsys.readouterr().err
+
+
+def test_a_tcp_forward_on_the_https_port_is_still_someone_elses(agent, tailscale, capsys):
+    tailscale.state["serve"] = {
+        "TCP": {"8443": {"TCPForward": "127.0.0.1:5432"}},
+    }
+
+    rc = web_cli.web_command(["install", "--https-port", "8443"])
+
+    assert rc == 1
+    assert agent.installs == []
+    assert "already serves" in capsys.readouterr().err
 
 
 def test_status_has_no_tailnet_url_when_the_mapping_is_not_ours(agent, tailscale, monkeypatch, capsys):

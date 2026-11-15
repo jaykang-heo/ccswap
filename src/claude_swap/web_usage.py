@@ -142,8 +142,18 @@ def remove_key(backup_root: Path, email: str, num: str | None = None) -> None:
     if email in index:
         _write_index(backup_root, index - {email})
     if num is not None:
+        clear_readings(backup_root, [num])
+
+
+def clear_readings(backup_root: Path, nums) -> None:
+    """Drop the cached reading of each slot in ``nums``, retry window included.
+
+    A rejected key parks its slot for ``INVALID_KEY_RETRY_S``. Saving a new key
+    must not wait that out, so the caller clears the slots that key now serves.
+    """
+    for num in nums:
         try:
-            _cache_path(backup_root, num).unlink()
+            _cache_path(backup_root, str(num)).unlink()
         except OSError:
             pass
 

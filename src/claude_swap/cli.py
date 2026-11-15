@@ -743,6 +743,14 @@ def _web_key_command(argv: list[str]) -> None:
                 "nothing was saved"
             )
         web_usage.set_key(switcher.backup_dir, email, key)
+        # The new key serves every slot of this email, so each of their cached
+        # readings goes too, including one parked by an earlier bad key.
+        same_email = {
+            slot_num
+            for slot_num, slot_email, _org in switcher.roster_identities()
+            if slot_email.casefold() == email.casefold()
+        }
+        web_usage.clear_readings(switcher.backup_dir, {num, *same_email})
         print(f"saved web key for account {num} ({email})")
     except (ClaudeSwitchError, KeychainError) as exc:
         error(f"Error: {exc}")

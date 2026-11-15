@@ -263,6 +263,67 @@ def test_resolve_program_ignores_an_argv0_that_is_not_cswap(tmp_path):
             assert launch_agent.resolve_program() == [str(found)]
 
 
+def _mise_install(mise_data: Path, commit: str) -> Path:
+    """A console script inside a mise pipx install, the way `mise use` lays it out."""
+    script = mise_data / "installs" / f"pipx-git-ssh-x-{commit}" / "latest" / "bin" / "ccswap"
+    script.parent.mkdir(parents=True)
+    script.write_text("#!/bin/sh\n")
+    return script
+
+
+def _mise_shim(mise_data: Path) -> Path:
+    """The shim: a symlink to the mise binary, which lives in its own directory."""
+    mise_bin = mise_data.parent / "bin" / "mise"
+    mise_bin.parent.mkdir(parents=True, exist_ok=True)
+    mise_bin.write_text("#!/bin/sh\n")
+    shim = mise_data / "shims" / "ccswap"
+    shim.parent.mkdir(parents=True)
+    shim.symlink_to(mise_bin)
+    return shim
+
+
+def test_resolve_program_pins_the_mise_shim_instead_of_a_commit_folder(tmp_path, monkeypatch):
+    mise_data = tmp_path / "mise"
+    monkeypatch.setenv("MISE_DATA_DIR", str(mise_data))
+    script = _mise_install(mise_data, "abc123")
+    shim = _mise_shim(mise_data)
+
+    with patch.object(launch_agent.sys, "argv", [str(script)]):
+        assert launch_agent.resolve_program() == [str(shim)]
+
+
+def test_resolve_program_uses_the_default_mise_data_dir_when_unset(tmp_path, monkeypatch):
+    monkeypatch.delenv("MISE_DATA_DIR", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    mise_data = tmp_path / ".local" / "share" / "mise"
+    script = _mise_install(mise_data, "def456")
+    shim = _mise_shim(mise_data)
+
+    with patch.object(launch_agent.sys, "argv", [str(script)]):
+        assert launch_agent.resolve_program() == [str(shim)]
+
+
+def test_resolve_program_keeps_the_mise_install_path_when_there_is_no_shim(tmp_path, monkeypatch):
+    mise_data = tmp_path / "mise"
+    monkeypatch.setenv("MISE_DATA_DIR", str(mise_data))
+    script = _mise_install(mise_data, "abc123")
+
+    with patch.object(launch_agent.sys, "argv", [str(script)]):
+        assert launch_agent.resolve_program() == [str(script)]
+
+
+def test_plist_path_keeps_the_directory_of_the_mise_binary_behind_the_shim(tmp_path, monkeypatch):
+    mise_data = tmp_path / "mise"
+    monkeypatch.setenv("MISE_DATA_DIR", str(mise_data))
+    shim = _mise_shim(mise_data)
+
+    parsed = plistlib.loads(launch_agent.build_plist([str(shim)], home=tmp_path))
+    entries = parsed["EnvironmentVariables"]["PATH"].split(":")
+
+    assert entries[0] == str(shim.parent)
+    assert str(shim.parent.parent.parent / "bin") in entries
+
+
 # --- install ---------------------------------------------------------------
 
 
