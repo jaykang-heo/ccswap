@@ -27,7 +27,7 @@ from claude_swap.exceptions import (
     SwitchError,
     ValidationError,
 )
-from claude_swap import live_rate_limits, login_expiry, oauth, pace
+from claude_swap import live_rate_limits, login_expiry, oauth, pace, web_usage
 from claude_swap.claude_locks import claude_config_lock, claude_credentials_lock
 from claude_swap.json_output import (
     SCHEMA_VERSION,
@@ -1185,6 +1185,20 @@ class ClaudeAccountSwitcher:
             record.get("email", ""),
             record.get("organizationUuid", "") or "",
         )
+
+    def roster_identities(self) -> list[tuple[str, str, str]]:
+        """``(num, email, organizationUuid)`` for every managed slot, roster order.
+
+        Reads the sequence file only: no credentials, no usage fetch.
+        """
+        data = self._get_sequence_data_migrated() or {}
+        out: list[tuple[str, str, str]] = []
+        for num in data.get("sequence", []):
+            record = data.get("accounts", {}).get(str(num), {})
+            out.append(
+                (str(num), record.get("email", ""), record.get("organizationUuid", "") or "")
+            )
+        return out
 
     def set_alias(self, identifier: str, alias: str) -> tuple[str, str]:
         """Set (or rename) the alias for the account matching identifier.
@@ -5534,7 +5548,7 @@ class ClaudeAccountSwitcher:
                     sentinels[num] = USAGE_RELOGIN_REQUIRED
 
         now = store.clock()
-        return live_rate_limits.overlay(
+        out = live_rate_limits.overlay(
             {
                 num: with_sentinel(entries[num], sentinels.get(num))
                 for num in info_by_num
@@ -5542,6 +5556,15 @@ class ClaudeAccountSwitcher:
             live_rate_limits.load(self.backup_dir, now),
             now,
         )
+        try:
+            web_usage.refresh(
+                self.backup_dir,
+                [(str(i[0]), i[1], i[3]) for i in accounts_info if i[3]],
+                now,
+            )
+        except Exception as exc:  # the web source must never break collection
+            self._logger.debug("web usage refresh skipped: %s", type(exc).__name__)
+        return web_usage.overlay(out, web_usage.load(self.backup_dir, now), now)
 
     def _heal_active_quarantine_from_live(
         self,
