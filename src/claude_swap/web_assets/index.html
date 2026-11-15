@@ -4,258 +4,35 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Claude usage</title>
+<title>Tool usage</title>
 <style>
-:root {
-  --bg: #f5f5f3; --card: #ffffff; --text: #1d1d1b; --muted: #6a6963;
-  --line: #e2e1dc; --track: #ebeae5; --accent: #b4532f; --ok: #2f7a4c;
-  --warn: #a86b12; --danger: #b42318; --banner-bg: #fff3e0; --banner-text: #6b3f00;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #141413; --card: #1e1e1c; --text: #ecebe6; --muted: #9b9a93;
-    --line: #2d2d2a; --track: #2b2b28; --accent: #e8906f; --ok: #6cc08b;
-    --warn: #f0b357; --danger: #ff7b72; --banner-bg: #3a2a12; --banner-text: #ffd9a0;
-  }
-}
-* { box-sizing: border-box; }
-html, body {
-  margin: 0; background: var(--bg); color: var(--text);
-  font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  -webkit-text-size-adjust: 100%;
-}
-main { max-width: 640px; margin: 0 auto; padding: 16px; }
-h1 { font-size: 20px; margin: 8px 0 2px; }
-.sub { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
-.banner {
-  display: none; padding: 12px 16px; margin-bottom: 16px; border-radius: 10px;
-  background: var(--banner-bg); color: var(--banner-text); font-size: 15px;
-}
-.banner.show { display: block; }
-.card {
-  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
-  padding: 16px; margin-bottom: 16px;
-}
-.card.active { border-color: var(--accent); }
-.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-.email { font-weight: 600; word-break: break-all; }
-.org { color: var(--muted); font-size: 14px; }
-.badge {
-  flex: none; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px;
-  background: var(--accent); color: #ffffff;
-}
-.tag { flex: none; font-size: 12px; color: var(--muted); border: 1px solid var(--line); padding: 1px 8px; border-radius: 999px; }
-.win { margin-top: 14px; }
-.win-head { display: flex; justify-content: space-between; font-size: 15px; }
-.pct { font-variant-numeric: tabular-nums; font-weight: 600; }
-.bar { height: 10px; border-radius: 999px; background: var(--track); overflow: hidden; margin: 6px 0 4px; }
-.fill { height: 100%; width: 0; border-radius: 999px; background: var(--ok); transition: width 0.4s ease; }
-.fill.warn { background: var(--warn); }
-.fill.danger { background: var(--danger); }
-.meta { font-size: 13px; color: var(--muted); }
-.dim { opacity: 0.6; }
-.note { margin: 14px 0 0; color: var(--muted); font-size: 14px; }
-.source { margin-top: 14px; font-size: 13px; color: var(--muted); }
-@media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
+:root{--bg:#f5f5f3;--card:#fff;--text:#1d1d1b;--muted:#73716b;--line:#e2e1dc;--track:#ebeae5;--ok:#2f7a4c;--warn:#a86b12;--danger:#b42318;--accent:#b4532f;--banner:#fff3e0}
+@media(prefers-color-scheme:dark){:root{--bg:#141413;--card:#1e1e1c;--text:#ecebe6;--muted:#9b9a93;--line:#2d2d2a;--track:#2b2b28;--ok:#6cc08b;--warn:#f0b357;--danger:#ff7b72;--accent:#e8906f;--banner:#3a2a12}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.25 system-ui,-apple-system,"Segoe UI",sans-serif}main{max-width:640px;margin:auto;padding:8px}h1{font-size:18px;margin:3px 0}.sub{color:var(--muted);font-size:11px;margin:0 0 6px}.banner{display:none;background:var(--banner);padding:6px 8px;border-radius:6px;margin:4px 0;font-size:11px}.banner.show{display:block}section{margin:4px 0 8px}details{border:1px solid var(--line);border-radius:8px;background:var(--card);overflow:hidden}summary{list-style:none;cursor:pointer;padding:6px 8px;font-weight:650;display:flex;gap:7px;align-items:center}summary::-webkit-details-marker{display:none}.headline{font-size:11px;color:var(--muted);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row{padding:4px 7px;border-top:1px solid var(--line)}.line1{display:flex;align-items:center;gap:5px;min-height:18px;overflow:hidden}.line2{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding-top:3px}.line2::-webkit-scrollbar{display:none}.rank,.chip,.active,.stale{font-size:10px;line-height:15px;white-space:nowrap;border-radius:4px;padding:0 4px;flex:none}.rank{background:var(--line);font-variant-numeric:tabular-nums}.identity{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.suffix,.meta{color:var(--muted);font-size:10px;white-space:nowrap}.suffix{overflow:hidden;text-overflow:ellipsis}.active{color:#fff;background:var(--ok)}.stale{color:var(--muted);border:1px solid var(--line)}.chip{border:1px solid var(--line);color:var(--muted)}.mini{display:flex;align-items:center;gap:3px;font-size:10px;white-space:nowrap;min-width:0}.bar{height:4px;width:36px;border-radius:5px;background:var(--track);overflow:hidden}.fill{height:100%;background:var(--ok)}.fill.warn{background:var(--warn)}.fill.danger{background:var(--danger)}.meta{margin-left:auto}.note{font-size:10px;color:var(--muted);margin:2px 0 0}.empty{padding:8px;color:var(--muted);font-size:11px}
 </style>
 </head>
-<body>
-<main>
-  <h1>Claude usage</h1>
-  <p class="sub" id="sub">Loading…</p>
-  <div class="banner" id="banner" role="status"></div>
-  <noscript><p class="note">This page needs JavaScript to show live usage.</p></noscript>
-  <section id="accounts" aria-live="polite"></section>
+<body><main>
+<h1>Tool usage</h1><p class="sub" id="sub">Loading…</p><div class="banner" id="banner" role="status"></div>
+<section id="accounts" aria-live="polite"></section>
 </main>
 <script>
-(function () {
-  "use strict";
-  var POLL_MS = 15000;
-  var STALE_S = 120;
-  var snapshot = null;   // last successful /api/usage body
-  var receivedAt = 0;    // Date.now() when that body arrived
-  var failed = false;    // the most recent fetch failed
-
-  function $(id) { return document.getElementById(id); }
-
-  function el(tag, cls, text) {
-    var node = document.createElement(tag);
-    if (cls) node.className = cls;
-    if (text != null) node.textContent = text;
-    return node;
-  }
-
-  // Durations: "12s", "3m", "2h".
-  function fmtDur(s) {
-    if (s < 60) return Math.max(0, Math.round(s)) + "s";
-    if (s < 3600) return Math.floor(s / 60) + "m";
-    return Math.floor(s / 3600) + "h";
-  }
-
-  function fmtIn(ms) {
-    if (ms <= 0) return "resetting…";
-    var m = Math.floor(ms / 60000);
-    var h = Math.floor(m / 60);
-    var d = Math.floor(h / 24);
-    if (d > 0) return "resets in " + d + "d " + (h % 24) + "h";
-    if (h > 0) return "resets in " + h + "h " + (m % 60) + "m";
-    if (m > 0) return "resets in " + m + "m";
-    return "resets in <1m";
-  }
-
-  var STATUS_TEXT = {
-    token_expired: "Sign-in token expired; waiting for a refresh",
-    relogin_required: "Re-login needed",
-    api_key: "API-key account; no subscription usage",
-    keychain_unavailable: "Keychain unavailable on this Mac",
-    foreign_credential: "Live credential belongs to another account",
-    no_credentials: "No credentials stored"
-  };
-
-  function statusText(acc) {
-    var text = STATUS_TEXT[acc.usageStatus] || "Usage unavailable";
-    if (acc.usageStatus === "relogin_required" && acc.number != null) {
-      text += ": run ccswap relogin " + acc.number;
-    }
-    if (acc.usageError) text += " (" + acc.usageError + ")";
-    return text;
-  }
-
-  function windowNode(label, win, dim) {
-    var pct = Number(win.pct) || 0;
-    var wrap = el("div", "win" + (dim ? " dim" : ""));
-    var head = el("div", "win-head");
-    head.appendChild(el("span", "", label));
-    head.appendChild(el("span", "pct", Math.round(pct) + "%"));
-    var bar = el("div", "bar");
-    var fill = el("div", "fill" + (pct >= 100 ? " danger" : pct >= 90 ? " warn" : ""));
-    fill.style.width = Math.min(100, Math.max(0, pct)) + "%";
-    bar.appendChild(fill);
-    wrap.appendChild(head);
-    wrap.appendChild(bar);
-    var reset = el("div", "meta", win.resetsAt ? "" : "no reset time reported");
-    if (win.resetsAt) reset.dataset.reset = win.resetsAt;
-    wrap.appendChild(reset);
-    return wrap;
-  }
-
-  function accountCard(acc) {
-    var card = el("article", "card" + (acc.active ? " active" : ""));
-
-    var head = el("div", "head");
-    var titles = el("div");
-    titles.appendChild(el("div", "email", (acc.alias ? acc.alias + " · " : "") + acc.email));
-    var org = "Account " + acc.number;
-    if (acc.organizationName) org += " · " + acc.organizationName;
-    titles.appendChild(el("div", "org", org));
-    head.appendChild(titles);
-    if (acc.active) head.appendChild(el("span", "badge", "active"));
-    else if (acc.disabled) head.appendChild(el("span", "tag", "disabled"));
-    card.appendChild(head);
-
-    var fresh = !!acc.usage && typeof acc.usage === "object";
-    var usage = fresh ? acc.usage : acc.lastGoodUsage;
-    var ageBase = fresh ? acc.usageAgeSeconds : acc.lastGoodAgeSeconds;
-    if (!usage || typeof usage !== "object") {
-      card.appendChild(el("p", "note", statusText(acc)));
-      return card;
-    }
-    if (!fresh) card.appendChild(el("p", "note", statusText(acc) + ". Showing the last reading."));
-
-    var scoped = Array.isArray(usage.scoped) ? usage.scoped : [];
-    if (usage.fiveHour) card.appendChild(windowNode("5-hour", usage.fiveHour, !fresh));
-    if (usage.sevenDay) card.appendChild(windowNode("7-day", usage.sevenDay, !fresh));
-    scoped.forEach(function (w) {
-      card.appendChild(windowNode("7-day · " + w.name, w, !fresh));
-    });
-    if (!usage.fiveHour && !usage.sevenDay && !scoped.length) {
-      card.appendChild(el("p", "note", "No usage windows reported"));
-    }
-
-    var source = el("div", "source");
-    source.dataset.source = usage.source || "oauth";
-    source.dataset.ageBase = ageBase == null ? "" : String(ageBase);
-    card.appendChild(source);
-    return card;
-  }
-
-  function render() {
-    var list = $("accounts");
-    list.textContent = "";
-    var payload = snapshot && snapshot.claude;
-    if (payload && Array.isArray(payload.accounts)) {
-      if (payload.accounts.length === 0) {
-        list.appendChild(el("p", "note", "No Claude accounts yet. Run ccswap add on the Mac."));
-      }
-      payload.accounts.forEach(function (acc) { list.appendChild(accountCard(acc)); });
-    } else if (failed) {
-      list.appendChild(el("p", "note", "Can't reach the dashboard server."));
-    } else {
-      list.appendChild(el("p", "note", "Waiting for the first reading…"));
-    }
-    tick();
-  }
-
-  // Cheap, runs every second: live countdowns and source ages, plus the banner.
-  function tick() {
-    var now = Date.now();
-    var elapsed = receivedAt ? (now - receivedAt) / 1000 : 0;
-    document.querySelectorAll("[data-reset]").forEach(function (node) {
-      node.textContent = fmtIn(Date.parse(node.dataset.reset) - now);
-    });
-    document.querySelectorAll("[data-source]").forEach(function (node) {
-      var base = parseFloat(node.dataset.ageBase);
-      var text = "source " + node.dataset.source;
-      if (!isNaN(base)) text += " · " + fmtDur(base + elapsed) + " ago";
-      node.textContent = text;
-    });
-    updateBanner(now);
-  }
-
-  function updateBanner(now) {
-    var generated = snapshot && snapshot.generatedAt ? Date.parse(snapshot.generatedAt) : null;
-    var message = "";
-    if (generated != null) {
-      var ageS = (now - generated) / 1000;
-      $("sub").textContent = "Updated " + fmtDur(ageS) + " ago · refreshes every 15 s";
-      if (failed) {
-        message = "Can't reach the dashboard server. Showing the reading from " +
-          fmtDur(ageS) + " ago.";
-      } else if (ageS > STALE_S) {
-        message = "Stale: the last successful reading is " + fmtDur(ageS) +
-          " old. The Mac may be asleep, or ccswap web is stopped.";
-      }
-    } else {
-      $("sub").textContent = failed ? "Offline" : "Loading…";
-      if (failed) message = "Can't reach the dashboard server.";
-    }
-    var banner = $("banner");
-    banner.textContent = message;
-    banner.classList.toggle("show", message !== "");
-  }
-
-  function load() {
-    return fetch("/api/usage", { cache: "no-store" })
-      .then(function (response) {
-        if (!response.ok) throw new Error("HTTP " + response.status);
-        return response.json();
-      })
-      .then(function (body) {
-        snapshot = body;
-        receivedAt = Date.now();
-        failed = false;
-      })
-      .catch(function () { failed = true; })
-      .then(render);
-  }
-
-  load();
-  setInterval(load, POLL_MS);
-  setInterval(tick, 1000);
-  document.addEventListener("visibilitychange", function () {
-    if (!document.hidden) load();
-  });
-})();
-</script>
-</body>
-</html>
+(function(){"use strict";
+var POLL_MS=15000, STALE_S=120, snapshot=null, receivedAt=0, failed=false;
+function $(id){return document.getElementById(id)}
+function el(tag,cls,text){var n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n}
+function dur(s){s=Math.max(0,s);if(s<60)return Math.round(s)+"s";if(s<3600)return Math.floor(s/60)+"m";if(s<86400)return Math.floor(s/3600)+"h";return Math.floor(s/86400)+"d"}
+function reset(ts){var n=Number(ts);if(!isFinite(n))return "";return dur(n-Date.now()/1000)}
+function localPart(s){if(!s)return "account";return String(s).split("@")[0]}
+function percent(w){if(typeof w.usedPercent==="number")return w.usedPercent;if(typeof w.remaining==="number")return 100-w.remaining;if(w.unit==="credits"&&typeof w.used==="number"&&w.limit)return 100*w.used/w.limit;return null}
+function creditChips(usage){var out=[];function add(v,label){if(!v||!(Number(v.available)>0))return;var text=label+" resets "+v.available,expiry=v.earliestExpiresAt||v.expires_at;if(expiry){var d=typeof expiry==="number"?new Date(expiry*1000):new Date(expiry);if(!isNaN(d.getTime()))text+=" · exp "+d.toLocaleDateString(undefined,{month:"short",day:"numeric"})}out.push(text)}
+if(usage){add(usage.resetCredits||usage.reset_credits,"Resets");add(usage.fableResetCredits||usage.fable_reset_credits,"Fable");var obs=usage.observations||[];obs.forEach(function(o){var d=o&&o.data;if(d&&typeof d==="object")add(d.resetCredits||d.reset_credits,"Resets")})}return out}
+function mini(w){var label=w.label||w.key||"Usage",p=percent(w),node=el("span","mini");var compact=label.replace(/five.hour/i,"5h").replace(/seven.day|weekly/i,"7d").replace(/monthly/i,"mo").replace(/bonus/i,"Fable");node.appendChild(el("span","",compact));if(w.unit==="credits"&&w.used!=null&&w.limit!=null)node.appendChild(el("span","",Number(w.used).toLocaleString()+"/"+Number(w.limit).toLocaleString()));else if(p!=null){var bar=el("span","bar"),fill=el("span","fill"+(p>=100?" danger":p>=90?" warn":""));fill.style.width=Math.max(0,Math.min(100,p))+"%";bar.appendChild(fill);node.appendChild(bar);node.appendChild(el("b","",Math.round(p)+"%"))}if(w.resetsAt)node.appendChild(el("span","meta",reset(w.resetsAt)));return node}
+function accountCard(acc,tool){var row=el("article","row"),line=el("div","line1"),rank=Number(acc.rank)||1;line.appendChild(el("span","rank","#"+rank));var identity=(acc.identity&&acc.identity.email)||acc.email||acc.alias||acc.identity&&acc.identity.startUrl||"account";line.appendChild(el("span","identity",localPart(identity)));var suffix=acc.plan||acc.usage&&acc.usage.plan||acc.organizationName||acc.identity&&acc.identity.organizationName||acc.kind||"";if(suffix)line.appendChild(el("span","suffix",suffix));if(acc.active)line.appendChild(el("span","active","active"));var usage=acc.usage||acc.lastGoodUsage||{};if(!acc.usage&&acc.lastGoodUsage)usage.state="stale";creditChips(usage).forEach(function(t){line.appendChild(el("span","chip",t))});if(usage.state==="stale")line.appendChild(el("span","stale","stale"));var age=usage.observedAt?Math.max(0,Math.round(Date.now()/1000-usage.observedAt)):(acc.usageAgeSeconds==null?acc.lastGoodAgeSeconds:acc.usageAgeSeconds);var sourceName=usage.source||(tool==="claude"?"Claude":"usage");var source=el("span","meta",sourceName+(age==null?"":" · "+age+"s ago"));if(age!=null){source.dataset.age=String(age);source.dataset.source=sourceName}line.appendChild(source);row.appendChild(line);
+var line2=el("div","line2"),wins=usage.windows||[];wins.forEach(function(w){line2.appendChild(mini(w))});if(tool==="claude"){var u=usage;if(u.fiveHour)line2.appendChild(mini({key:"5h",label:"5h",usedPercent:u.fiveHour.pct,resetsAt:u.fiveHour.resetsAt}));if(u.sevenDay)line2.appendChild(mini({key:"7d",label:"7d",usedPercent:u.sevenDay.pct,resetsAt:u.sevenDay.resetsAt}));if(u.scoped)u.scoped.forEach(function(w){line2.appendChild(mini({label:w.name,usedPercent:w.pct,resetsAt:w.resetsAt}))})}row.appendChild(line2);
+var err=usage.error||acc.note;if(err)line.appendChild(el("span","suffix",err));return row}
+function section(tool){var accounts=(tool.accounts||[]).filter(function(a){return a.registered!==false});if(!accounts.length)return null;var details=el("details",""),summary=el("summary",""),label=tool.label||tool.tool;summary.appendChild(el("span","",label));summary.appendChild(el("span","headline",tool.headline||""));details.appendChild(summary);accounts.forEach(function(a){details.appendChild(accountCard(a,tool.tool))});return details}
+function render(){var list=$("accounts");list.textContent="";if(!snapshot){list.appendChild(el("p","empty",failed?"Can't reach the dashboard server.":"Waiting for the first reading…"));tick();return}var claude=snapshot.claude;if(claude){var active=(claude.accounts||[]).filter(function(a){return a.active})[0],u=active&&(active.usage||active.lastGoodUsage)||{},parts=[];if(u.fiveHour)parts.push("5h "+Math.round(u.fiveHour.pct)+"%");if(u.sevenDay)parts.push("7d "+Math.round(u.sevenDay.pct)+"%");var sec=section({tool:"claude",label:"Claude Code",headline:parts.join(" · "),accounts:claude.accounts||[]});if(sec)list.appendChild(sec)}(snapshot.tools||[]).forEach(function(t){var sec=section(t);if(sec)list.appendChild(sec)});if(!list.childNodes.length)list.appendChild(el("p","empty","No registered accounts."));tick()}
+function tick(){var age=receivedAt?(Date.now()-receivedAt)/1000:0,generated=snapshot&&snapshot.generatedAt?Date.parse(snapshot.generatedAt):null,msg="";if(generated!=null){var s=(Date.now()-generated)/1000;$("sub").textContent="Updated "+dur(s)+" ago · refreshes every 15 s";if(failed)msg="Can't reach the dashboard server. Showing the last reading from "+dur(s)+" ago.";else if(s>STALE_S)msg="Stale: last dashboard reading is "+dur(s)+" old."}else{$("sub").textContent=failed?"Offline":"Loading…";if(failed)msg="Can't reach the dashboard server."}var b=$("banner");b.textContent=msg;b.classList.toggle("show",!!msg);document.querySelectorAll(".meta").forEach(function(n){if(n.dataset.age){n.textContent=n.dataset.source+" · "+dur(Number(n.dataset.age)+age)+" ago"}})}
+function load(){return fetch("/api/usage",{cache:"no-store"}).then(function(r){if(!r.ok)throw Error();return r.json()}).then(function(b){snapshot=b;receivedAt=Date.now();failed=false}).catch(function(){failed=true}).then(render)}
+load();setInterval(load,POLL_MS);setInterval(tick,1000);document.addEventListener("visibilitychange",function(){if(!document.hidden)load()})})();
+</script></body></html>

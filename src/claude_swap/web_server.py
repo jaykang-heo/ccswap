@@ -30,6 +30,7 @@ from urllib.parse import urlsplit
 DEFAULT_PORT = 4592
 HOST = "127.0.0.1"
 INTERVAL_S = 20.0
+TOOLS_INTERVAL_S = 60.0
 
 _logger = logging.getLogger("claude-swap")
 
@@ -62,6 +63,8 @@ class Snapshot:
         self._lock = threading.Lock()
         self._payload: dict | None = None
         self._generated_at: float | None = None
+        self._tools: list[dict] = []
+        self._tools_generated_at: float | None = None
 
     def refresh(self) -> bool:
         """Collect once. A failing collection keeps the previous snapshot."""
@@ -79,12 +82,63 @@ class Snapshot:
 
     def document(self) -> dict:
         """The ``/api/usage`` body. ``generatedAt`` is null before the first success."""
+        from claude_swap.web_order import order_accounts
+
         with self._lock:
             payload, generated_at = self._payload, self._generated_at
+            tools, tools_generated_at = self._tools, self._tools_generated_at
+        claude = payload
+        if isinstance(claude, dict) and isinstance(claude.get("accounts"), list):
+            claude = dict(claude)
+            strategy = claude.pop("_webOrderStrategy", "best")
+            models = claude.pop("_webModels", ())
+            windows = claude.pop("_webAccountWindows", ("5h", "7d"))
+            claude["accounts"] = order_accounts(
+                "claude", claude["accounts"], strategy=strategy,
+                models=models, account_windows=windows,
+            )
+        ordered_tools = []
+        for tool in tools:
+            if isinstance(tool, dict) and isinstance(tool.get("accounts"), list):
+                tool = dict(tool)
+                tool["accounts"] = order_accounts(tool.get("tool"), tool["accounts"])
+            ordered_tools.append(tool)
         return {
             "generatedAt": _iso_utc(generated_at) if generated_at is not None else None,
-            "claude": payload,
+            "claude": claude,
+            "tools": ordered_tools,
+            "toolsGeneratedAt": (
+                _iso_utc(tools_generated_at)
+                if tools_generated_at is not None else None
+            ),
         }
+
+    def set_tools(self, tools: list[dict], generated_at: float | None = None) -> None:
+        with self._lock:
+            self._tools = tools
+            self._tools_generated_at = generated_at if generated_at is not None else time.time()
+
+
+class ToolsPoller(threading.Thread):
+    """Refresh the slower vendor overview independently of Claude's live poll."""
+
+    def __init__(self, snapshot: Snapshot, collector=None, interval: float = TOOLS_INTERVAL_S):
+        super().__init__(name="ccswap-web-tools-poller", daemon=True)
+        self._snapshot = snapshot
+        self._collector = collector or _overview_tools
+        self._interval = interval
+        self._stopping = threading.Event()
+
+    def run(self) -> None:
+        while not self._stopping.is_set():
+            try:
+                self._snapshot.set_tools(self._collector())
+            except Exception as exc:
+                _logger.warning("web tools refresh failed: %s", type(exc).__name__)
+            self._stopping.wait(self._interval)
+
+    def stop(self) -> None:
+        self._stopping.set()
 
 
 class Poller(threading.Thread):
@@ -156,10 +210,33 @@ def claude_payload() -> dict:
     """The ``ccswap list --json`` Claude payload, collected the same way."""
     from claude_swap.switcher import ClaudeAccountSwitcher
 
-    payload = ClaudeAccountSwitcher().list_accounts(json_output=True)
+    switcher = ClaudeAccountSwitcher()
+    payload = switcher.list_accounts(json_output=True)
     if not isinstance(payload, dict):
         raise RuntimeError("list_accounts returned no JSON payload")
+    from claude_swap.settings import load_settings
+    _threshold, models, windows = switcher._poll_policy_inputs()
+    strategy = load_settings(switcher.backup_dir).strategy
+    payload = dict(payload)
+    payload["_webOrderStrategy"] = strategy
+    payload["_webModels"] = models
+    payload["_webAccountWindows"] = windows
     return payload
+
+
+@lru_cache(maxsize=1)
+def _web_overview():
+    from claude_swap.vendors.overview import Overview
+
+    return Overview(legacy_fetch=False)
+
+
+def _overview_tools() -> list[dict]:
+    from claude_swap.vendors.overview import overview_json
+
+    overview = _web_overview()
+    tools = [tool for tool in overview.tools() if tool != "claude"]
+    return overview_json(overview.collect(tools))["tools"]
 
 
 def serve(port: int = DEFAULT_PORT, provider: Callable[[], dict | None] | None = None) -> int:
@@ -167,7 +244,9 @@ def serve(port: int = DEFAULT_PORT, provider: Callable[[], dict | None] | None =
     snapshot = Snapshot(provider or claude_payload)
     server = make_server(port, snapshot)
     poller = Poller(snapshot)
+    tools_poller = ToolsPoller(snapshot)
     poller.start()
+    tools_poller.start()
     bound = server.server_address[1]
     print(f"ccswap web dashboard on http://{HOST}:{bound}/", flush=True)
     try:
@@ -176,5 +255,6 @@ def serve(port: int = DEFAULT_PORT, provider: Callable[[], dict | None] | None =
         pass
     finally:
         poller.stop()
+        tools_poller.stop()
         server.server_close()
     return 0

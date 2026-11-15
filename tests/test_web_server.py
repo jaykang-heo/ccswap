@@ -58,7 +58,7 @@ def test_api_usage_returns_the_payload_with_no_store(running):
     assert headers["Cache-Control"] == "no-store"
     assert headers["Content-Type"].startswith("application/json")
     document = json.loads(body)
-    assert document["claude"] == PAYLOAD
+    assert document["claude"]["accounts"] == [{**PAYLOAD["accounts"][0], "rank": 1}]
     assert document["generatedAt"].endswith("Z")
 
 
@@ -104,7 +104,9 @@ def test_api_usage_before_the_first_collection_reports_no_reading():
         server.shutdown()
         server.server_close()
 
-    assert json.loads(body) == {"generatedAt": None, "claude": None}
+    assert json.loads(body) == {
+        "generatedAt": None, "claude": None, "tools": [], "toolsGeneratedAt": None
+    }
 
 
 def test_a_failing_collection_keeps_the_last_good_snapshot():
@@ -120,7 +122,7 @@ def test_a_failing_collection_keeps_the_last_good_snapshot():
     assert snapshot.refresh() is True
     assert snapshot.refresh() is False
 
-    assert snapshot.document()["claude"] == PAYLOAD
+    assert snapshot.document()["claude"]["accounts"] == [{**PAYLOAD["accounts"][0], "rank": 1}]
 
 
 def test_poller_collects_on_its_own_interval():
@@ -146,6 +148,73 @@ def test_poller_collects_on_its_own_interval():
 def test_the_page_ships_as_package_data():
     html = resources.files("claude_swap").joinpath("web_assets/index.html").read_bytes()
     assert b"<!doctype html>" in html.lower()
+
+
+def test_api_usage_includes_stubbed_non_claude_tools(monkeypatch):
+    from claude_swap.vendors.overview import Overview, ToolSummary
+
+    overview = Overview(legacy=[], service=SimpleNamespace(registry={}))
+    overview.tools = lambda: ["codex", "muse", "kiro"]
+    overview.collect_one = lambda tool, *, refresh=False: ToolSummary(tool, tool.title())
+    monkeypatch.setattr(web_server, "_web_overview", lambda: overview)
+    snapshot = web_server.Snapshot(lambda: PAYLOAD)
+    snapshot.set_tools(web_server._overview_tools(), 1_794_536_517.0)
+    server = web_server.make_server(0, snapshot)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        _status, _headers, body = _get(server.server_address[1], "/api/usage")
+    finally:
+        server.shutdown()
+        server.server_close()
+    document = json.loads(body)
+    assert [tool["tool"] for tool in document["tools"]] == ["codex", "muse", "kiro"]
+    assert document["toolsGeneratedAt"].endswith("Z")
+
+
+def test_a_tool_collection_error_does_not_drop_other_overview_tools(monkeypatch):
+    from claude_swap.vendors.overview import Overview, ToolSummary
+
+    overview = Overview(legacy=[], service=SimpleNamespace(registry={}))
+    overview.tools = lambda: ["codex", "muse", "kiro"]
+
+    def collect_one(tool, *, refresh=False):
+        if tool == "muse":
+            raise RuntimeError("probe failed")
+        return ToolSummary(tool, tool.title())
+
+    overview.collect_one = collect_one
+    monkeypatch.setattr(web_server, "_web_overview", lambda: overview)
+    tools = web_server._overview_tools()
+    assert [tool["tool"] for tool in tools] == ["codex", "muse", "kiro"]
+    assert tools[1]["error"] == "RuntimeError while reading this tool"
+
+
+def test_page_references_non_claude_tools_and_compact_rows(running):
+    _status, _headers, body = _get(running.port, "/")
+    html = body.decode()
+    assert "snapshot.tools" in html
+    assert "resetCredits" in html
+    assert 'el("span","rank","#"+rank)' in html
+
+
+def test_api_usage_orders_claude_accounts_by_headroom():
+    claude = {"accounts": [
+        {"number": 2, "usageStatus": "ok", "usage": {"fiveHour": {"pct": 80}, "sevenDay": {"pct": 30}}},
+        {"number": 1, "usageStatus": "ok", "usage": {"fiveHour": {"pct": 10}, "sevenDay": {"pct": 20}}},
+    ]}
+    snapshot = web_server.Snapshot(lambda: claude)
+    assert snapshot.refresh()
+    server = web_server.make_server(0, snapshot)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        _status, _headers, body = _get(server.server_address[1], "/api/usage")
+    finally:
+        server.shutdown()
+        server.server_close()
+    accounts = json.loads(body)["claude"]["accounts"]
+    assert [(a["number"], a["rank"]) for a in accounts] == [(1, 1), (2, 2)]
 
 
 # -- ccswap web install / uninstall / status ---------------------------------
