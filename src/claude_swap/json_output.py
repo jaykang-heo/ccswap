@@ -111,6 +111,9 @@ def usage_to_json(usage: dict, fetched_at: float | None = None) -> dict:
     (issue #125).
     """
     out: dict = {}
+    if "source" in usage:
+        # Where the numbers came from ("web" for claude.ai, absent for OAuth).
+        out["source"] = usage["source"]
     if "five_hour" in usage:
         out["fiveHour"] = _window_to_json(usage["five_hour"])
     if "seven_day" in usage:

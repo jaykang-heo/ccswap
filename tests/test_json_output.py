@@ -70,6 +70,10 @@ class TestJsonHelpers:
             },
         }
 
+    def test_usage_to_json_emits_source_when_present_only(self):
+        assert usage_to_json({"seven_day": {"pct": 1.0}, "source": "web"})["source"] == "web"
+        assert "source" not in usage_to_json({"seven_day": {"pct": 1.0}})
+
     def test_usage_to_json_maps_keys_and_preserves_raw_reset(self):
         resets_at = (datetime.now(timezone.utc) + timedelta(hours=4, seconds=30)).isoformat()
         countdown, clock = oauth.format_reset(resets_at)

@@ -46,8 +46,13 @@ TTL_S = 20.0
 # Same window as live_rate_limits: older readings no longer describe the account.
 MAX_AGE_S = 6 * 3600.0
 MAX_WORKERS = 4
-TIMEOUT_S = 10
+# Short on purpose: this runs inside `ccswap list`, which must not stall on claude.ai.
+TIMEOUT_S = 5
 RETRY_FLOOR_S = 60.0
+# How long a rejected key or a Cloudflare block stays parked before the next try.
+# A bad key does not heal by itself, so retrying every TTL_S only adds requests.
+INVALID_KEY_RETRY_S = 600.0
+BLOCKED_RETRY_S = 300.0
 
 ACCOUNT_URL = "https://claude.ai/api/account"
 USAGE_URL = "https://claude.ai/api/organizations/{org_uuid}/usage"
@@ -190,6 +195,35 @@ def _retry_after(resp) -> float | None:
         return None
 
 
+def _header(resp, name: str) -> str:
+    """Case-insensitive response header lookup; empty when absent."""
+    headers = getattr(resp, "headers", None) or {}
+    try:
+        items = list(headers.items())
+    except AttributeError:
+        return ""
+    for k, v in items:
+        if isinstance(k, str) and k.lower() == name.lower() and isinstance(v, str):
+            return v
+    return ""
+
+
+def _is_cloudflare_block(resp) -> bool:
+    """A Cloudflare challenge page, which says nothing about the sessionKey."""
+    if _header(resp, "Content-Type").lower().startswith("text/html"):
+        return True
+    text = getattr(resp, "text", "")
+    return isinstance(text, str) and "Just a moment" in text
+
+
+def _has_json_body(resp) -> bool:
+    try:
+        resp.json()
+    except ValueError:
+        return False
+    return True
+
+
 def fetch(org_uuid: str, key: str) -> tuple[dict | None, str | None, float | None]:
     """One web usage read: ``(usage, error_kind, retry_after_s)``. Never raises."""
     try:
@@ -215,8 +249,16 @@ def fetch(org_uuid: str, key: str) -> tuple[dict | None, str | None, float | Non
         if usage is None:
             return None, "bad-response", None
         return usage, None, None
-    if status in (401, 403):
+    if status == 401:
         return None, "web-key-invalid", None
+    if status == 403:
+        # Cloudflare answers 403 with an HTML challenge; claude.ai answers a
+        # rejected key with a JSON error. Only the latter condemns the key.
+        if _is_cloudflare_block(resp):
+            return None, "web-blocked", None
+        if _has_json_body(resp):
+            return None, "web-key-invalid", None
+        return None, "http-403", None
     if status == 429:
         return None, "http-429", _retry_after(resp)
     return None, f"http-{status}", None
@@ -293,6 +335,10 @@ def refresh(backup_root: Path, accounts, now: float) -> None:
                 payload = {"observedAt": now, "error": kind or "error"}
                 if kind == "http-429":
                     payload["retryAt"] = now + max(retry_after or RETRY_FLOOR_S, RETRY_FLOOR_S)
+                elif kind == "web-key-invalid":
+                    payload["retryAt"] = now + INVALID_KEY_RETRY_S
+                elif kind == "web-blocked":
+                    payload["retryAt"] = now + BLOCKED_RETRY_S
             _write_cache(backup_root, num, payload)
             _logger.debug("web usage refresh for account %s: %s", num, kind or "ok")
 

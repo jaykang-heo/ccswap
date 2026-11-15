@@ -1574,6 +1574,10 @@ def main() -> None:
     if argv and argv[0] == "web-key":
         _web_key_command(argv[1:])
         return
+    if argv and argv[0] == "web":
+        from claude_swap.web_cli import web_command
+
+        sys.exit(web_command(argv[1:]))
     if argv and argv[0] == "usage":
         from claude_swap.vendors.cli import usage_command
 

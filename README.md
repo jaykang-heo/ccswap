@@ -81,6 +81,32 @@ For personal Google Antigravity accounts, sign in with `agy`, then run `ccswap a
 
 You usually don't need to restart Claude Code after a switch. Codex always needs one. See [restarts](https://github.com/errhythm/ccswap/blob/main/docs/how-it-works.md#restarts-and-session-behavior).
 
+## Web dashboard and real-time usage
+
+With a claude.ai session key per account, ccswap reads Claude usage about every 20 seconds instead of every few minutes. `ccswap web` keeps a phone-friendly page of every Claude account running on your Mac, reachable only from your Tailscale tailnet.
+
+1. Add each Claude account's claude.ai session key. Open claude.ai in a browser logged in as that account, then copy the `sessionKey` cookie from DevTools > Application > Cookies > `https://claude.ai`. Then run:
+
+   ```bash
+   ccswap web-key set 1      # paste the sessionKey at the prompt
+   ccswap web-key list       # which accounts have a key
+   ```
+
+   Treat the sessionKey like a password. It is stored in the macOS Keychain and never printed.
+
+2. Install the always-on dashboard:
+
+   ```bash
+   ccswap web install        # LaunchAgent on 127.0.0.1:4592 + tailscale serve on HTTPS port 8443
+   ccswap web status
+   ```
+
+3. Open the tailnet URL it prints, for example `https://your-mac.tail1234.ts.net:8443/`, on your phone while connected to Tailscale. Add it to your home screen if you like.
+
+The page is tailnet-only. The server listens on `127.0.0.1`, and only `tailscale serve` (not Funnel) exposes it, to devices on your tailnet. `ccswap web uninstall` removes both the LaunchAgent and the HTTPS mapping. Other `tailscale serve` mappings are never touched.
+
+Details and failure behavior: [docs/web-usage.md](docs/web-usage.md).
+
 ## Common tasks
 
 **Switch by quota.** `ccswap switch --strategy best` picks the account with the most quota left. `--strategy consume-first` picks the one whose weekly limit resets soonest, so none of it expires unused. [All switch options](https://github.com/errhythm/ccswap/blob/main/docs/commands.md#switch-accounts)

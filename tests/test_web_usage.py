@@ -113,7 +113,7 @@ class FakeRequests:
 
 @pytest.mark.parametrize(
     ("status", "expected_kind"),
-    [(401, "web-key-invalid"), (403, "web-key-invalid"), (500, "http-500")],
+    [(401, "web-key-invalid"), (500, "http-500")],
 )
 def test_fetch_maps_rejections_and_server_errors(monkeypatch, status, expected_kind):
     fake = FakeRequests(FakeResponse(status))
@@ -122,6 +122,48 @@ def test_fetch_maps_rejections_and_server_errors(monkeypatch, status, expected_k
     usage, kind, retry = web_usage.fetch("org-1", SECRET)
 
     assert (usage, kind, retry) == (None, expected_kind, None)
+
+
+def test_fetch_403_with_a_json_body_means_the_key_is_invalid(monkeypatch):
+    fake = FakeRequests(
+        FakeResponse(403, {"error": {"type": "permission_error"}}, {"Content-Type": "application/json"})
+    )
+    monkeypatch.setattr(web_usage, "_requests", lambda: fake)
+
+    assert web_usage.fetch("org-1", SECRET) == (None, "web-key-invalid", None)
+
+
+def test_fetch_403_html_challenge_is_a_cloudflare_block_not_a_bad_key(monkeypatch):
+    fake = FakeRequests(FakeResponse(403, None, {"Content-Type": "text/html; charset=utf-8"}))
+    monkeypatch.setattr(web_usage, "_requests", lambda: fake)
+
+    assert web_usage.fetch("org-1", SECRET) == (None, "web-blocked", None)
+
+
+def test_fetch_403_just_a_moment_page_is_blocked_even_without_html_type(monkeypatch):
+    response = FakeResponse(403, None, {"Content-Type": "application/octet-stream"})
+    response.text = "<title>Just a moment...</title>"
+    fake = FakeRequests(response)
+    monkeypatch.setattr(web_usage, "_requests", lambda: fake)
+
+    assert web_usage.fetch("org-1", SECRET) == (None, "web-blocked", None)
+
+
+def test_fetch_403_with_neither_json_nor_challenge_is_an_http_error(monkeypatch):
+    fake = FakeRequests(FakeResponse(403, None, {"Content-Type": "text/plain"}))
+    monkeypatch.setattr(web_usage, "_requests", lambda: fake)
+
+    assert web_usage.fetch("org-1", SECRET) == (None, "http-403", None)
+
+
+def test_fetch_timeout_is_five_seconds(monkeypatch):
+    fake = FakeRequests(FakeResponse(200, {}))
+    monkeypatch.setattr(web_usage, "_requests", lambda: fake)
+
+    web_usage.fetch("org-1", SECRET)
+
+    assert web_usage.TIMEOUT_S == 5
+    assert fake.calls[0][1]["timeout"] == 5
 
 
 def test_fetch_success_returns_normalized_usage_and_sends_the_cookie(monkeypatch):
@@ -225,6 +267,35 @@ def test_refresh_does_not_fetch_inside_a_429_retry_window(
     assert fetched == []
 
     web_usage.refresh(tmp_path, accounts, NOW + 61)
+    assert fetched == ["org-a"]
+
+
+@pytest.mark.parametrize(
+    ("kind", "window"),
+    [
+        ("web-key-invalid", web_usage.INVALID_KEY_RETRY_S),
+        ("web-blocked", web_usage.BLOCKED_RETRY_S),
+    ],
+)
+def test_refresh_parks_a_rejected_key_or_a_block_before_retrying(
+    tmp_path, file_keys, monkeypatch, kind, window
+):
+    web_usage.set_key(tmp_path, "a@example.com", SECRET)
+    accounts = [("1", "a@example.com", "org-a")]
+    monkeypatch.setattr(web_usage, "fetch", lambda org, key: (None, kind, None))
+    web_usage.refresh(tmp_path, accounts, NOW)
+    cached = json.loads((tmp_path / "cache" / "web_usage" / "1.json").read_text())
+    assert cached["error"] == kind
+    assert cached["retryAt"] == NOW + window
+
+    fetched = []
+    monkeypatch.setattr(
+        web_usage, "fetch", lambda org, key: fetched.append(org) or (WEB_USAGE, None, None)
+    )
+    web_usage.refresh(tmp_path, accounts, NOW + window - 1)
+    assert fetched == []
+
+    web_usage.refresh(tmp_path, accounts, NOW + window + 1)
     assert fetched == ["org-a"]
 
 
