@@ -42,14 +42,17 @@ from claude_swap.fsutil import atomic_write_bytes
 
 LABEL = "com.ccswap.menubar"
 AUTO_LABEL = "com.ccswap.auto"
+WEB_LABEL = "io.github.ccswap.web"
 
 # Label -> (subcommand, launchd ProcessType). A menu bar owner is a UI process;
 # Background would have launchd apply throttled I/O and CPU bands to it. The
 # auto-switch loop sleeps between polls and has nobody waiting on it, so
-# Background is what it wants.
-_SERVICES = {
+# Background is what it wants. A subcommand of None means the caller's
+# ``program`` already carries the full argv (``web serve --port N``).
+_SERVICES: dict[str, tuple[str | None, str]] = {
     LABEL: ("menubar", "Interactive"),
     AUTO_LABEL: ("auto", "Background"),
+    WEB_LABEL: (None, "Background"),
 }
 
 # launchd's default PATH is /usr/bin:/bin:/usr/sbin:/sbin, which covers
@@ -164,6 +167,12 @@ def _forwarded_env(label: str, env: Mapping[str, str]) -> dict[str, str]:
     return forwarded
 
 
+def _service_argv(program: list[str], label: str) -> list[str]:
+    """The full ProgramArguments for ``label``: program plus its subcommand, if any."""
+    subcommand = _SERVICES[label][0]
+    return [*program, subcommand] if subcommand else list(program)
+
+
 def build_plist(
     program: list[str] | None = None,
     label: str = LABEL,
@@ -176,14 +185,14 @@ def build_plist(
     containing ``&`` or ``<`` cannot produce a plist launchd refuses to parse.
     """
     program = program or resolve_program()
-    subcommand, process_type = _SERVICES[label]
+    _subcommand, process_type = _SERVICES[label]
     out_log, err_log = log_paths(label, home)
     env = os.environ if env is None else env
     forwarded = _forwarded_env(label, env)
     return plistlib.dumps(
         {
             "Label": label,
-            "ProgramArguments": [*program, subcommand],
+            "ProgramArguments": _service_argv(program, label),
             "RunAtLoad": True,
             # Restart a crash, but respect a deliberate Quit. The menu bar's
             # quit handler calls rumps.quit_application(), a clean exit(0);
@@ -304,7 +313,7 @@ def install(
     return {
         "label": label,
         "plist": str(target_plist),
-        "program": [*program, _SERVICES[label][0]],
+        "program": _service_argv(program, label),
         "stdout_log": str(out_log),
         "stderr_log": str(err_log),
     }

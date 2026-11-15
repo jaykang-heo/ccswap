@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import math
 import os
 import sys
+import time
 
-from claude_swap import __version__, paths, printer
+from claude_swap import __version__, paths, printer, web_usage
+from claude_swap.macos_keychain import KeychainError
 from claude_swap.codex import CodexAccountSwitcher
 from claude_swap.agy import AgyAccountSwitcher
 from claude_swap.exceptions import ClaudeSwitchError, ConfigError
@@ -673,6 +676,76 @@ def _agy_command(argv: list[str]) -> None:
             print(json.dumps(error_envelope(exc)))
         else:
             error(str(exc))
+        sys.exit(1)
+
+
+def _web_key_command(argv: list[str]) -> None:
+    """``ccswap web-key``: store each account's claude.ai sessionKey for the web usage source."""
+    parser = argparse.ArgumentParser(
+        prog=f"{_prog_name()} web-key",
+        description=(
+            "Manage the claude.ai sessionKey that feeds the 20-second web usage source. "
+            "One key covers every organization of its account email."
+        ),
+    )
+    commands = parser.add_subparsers(dest="action", required=True)
+    set_cmd = commands.add_parser("set", help="Store the sessionKey for an account")
+    set_cmd.add_argument("account", metavar="NUM")
+    set_cmd.add_argument(
+        "--stdin", action="store_true", help="Read the sessionKey from stdin instead of a prompt"
+    )
+    list_cmd = commands.add_parser("list", help="Show which accounts have a web key")
+    list_cmd.add_argument("--json", action="store_true")
+    remove_cmd = commands.add_parser("remove", help="Delete an account's web key")
+    remove_cmd.add_argument("account", metavar="NUM")
+    args = parser.parse_args(argv)
+
+    switcher = ClaudeAccountSwitcher()
+    try:
+        if args.action == "list":
+            rows = web_usage.status(
+                switcher.backup_dir, switcher.roster_identities(), time.time()
+            )
+            if args.json:
+                print(json.dumps(rows, indent=2))
+                return
+            if not rows:
+                print("No Claude Code accounts.")
+            for row in rows:
+                key = "key" if row["hasKey"] else "no key"
+                last = (
+                    f"last {int(row['ageS'])}s ago" if row["ageS"] is not None else "never fetched"
+                )
+                error_note = f", error: {row['error']}" if row["error"] else ""
+                print(f"  {row['num']}  {row['email']}  {key}  {last}{error_note}")
+            return
+
+        num, email, _org_uuid = switcher.resolve_account(args.account)
+        if args.action == "remove":
+            web_usage.remove_key(switcher.backup_dir, email, num=num)
+            print(f"removed web key for account {num} ({email})")
+            return
+
+        if args.stdin:
+            key = sys.stdin.read().strip()
+        else:
+            key = getpass.getpass("sessionKey: ").strip()
+        if not key:
+            raise ClaudeSwitchError("No sessionKey provided")
+        validated = web_usage.validate_key(key)
+        if validated is None:
+            raise ClaudeSwitchError(
+                "claude.ai rejected this sessionKey or could not be reached"
+            )
+        if validated.casefold() != email.casefold():
+            raise ClaudeSwitchError(
+                f"This sessionKey belongs to a different account, not account {num} ({email}); "
+                "nothing was saved"
+            )
+        web_usage.set_key(switcher.backup_dir, email, key)
+        print(f"saved web key for account {num} ({email})")
+    except (ClaudeSwitchError, KeychainError) as exc:
+        error(f"Error: {exc}")
         sys.exit(1)
 
 
@@ -1498,6 +1571,13 @@ def main() -> None:
     if argv and argv[0] == "agy":
         _agy_command(argv[1:])
         return
+    if argv and argv[0] == "web-key":
+        _web_key_command(argv[1:])
+        return
+    if argv and argv[0] == "web":
+        from claude_swap.web_cli import web_command
+
+        sys.exit(web_command(argv[1:]))
     if argv and argv[0] == "usage":
         from claude_swap.vendors.cli import usage_command
 
