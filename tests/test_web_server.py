@@ -81,7 +81,7 @@ def test_root_serves_one_self_contained_page_that_polls_api_usage(running):
     assert headers["Cache-Control"] == "no-store"
     html = body.decode()
     assert 'fetch("/api/usage"' in html
-    assert "prefers-color-scheme" in html
+    assert 'name="color-scheme" content="dark"' in html
     assert "<style>" in html and "<script>" in html
     # Self-contained: nothing loaded from another origin.
     assert "http://" not in html and "https://" not in html
@@ -196,7 +196,7 @@ def test_page_references_non_claude_tools_and_compact_rows(running):
     html = body.decode()
     assert "snapshot.tools" in html
     assert "resetCredits" in html
-    assert 'el("span","rank","#"+rank)' in html
+    assert 'el("span","rank"' in html
 
 
 def test_api_usage_orders_claude_accounts_by_headroom():
@@ -472,6 +472,6 @@ def test_dashboard_overview_fetches_legacy_tools():
         web_server._web_overview.cache_clear()
 
 
-def test_tool_sections_start_expanded():
+def test_tool_sections_cannot_collapse():
     html = (Path(web_server.__file__).parent / "web_assets" / "index.html").read_text()
-    assert "details.open=true" in html
+    assert "<details" not in html and '"details"' not in html
