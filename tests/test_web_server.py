@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 import json
 import plistlib
 import subprocess
@@ -469,3 +470,8 @@ def test_dashboard_overview_fetches_legacy_tools():
         assert web_server._web_overview().legacy_fetch is True
     finally:
         web_server._web_overview.cache_clear()
+
+
+def test_tool_sections_start_expanded():
+    html = (Path(web_server.__file__).parent / "web_assets" / "index.html").read_text()
+    assert "details.open=true" in html
