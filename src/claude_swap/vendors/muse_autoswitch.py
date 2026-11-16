@@ -204,9 +204,20 @@ class MuseAutoSwitchEngine:
             )
         if margin > 0:
             label, pct = min(active.used.items(), key=lambda w: gates.for_label(w[0]) - w[1])
-            return self._no(
-                "below-threshold", f"{label} {pct:.0f}% < {gates.for_label(label):.0f}%"
-            )
+            below = f"{label} {pct:.0f}% < {gates.for_label(label):.0f}%"
+            rebalance = self.settings.rebalance_pct
+            roomier = [
+                q
+                for q in roomiest([q for q in quotas if not q.active and q.restorable], gates)
+                if (q.margin(gates) or 0) > 0
+                and (q.headroom or 0) >= (active.headroom or 0) + rebalance
+            ]
+            if rebalance <= 0 or not roomier:
+                return self._no("below-threshold", below)
+            if self._in_cooldown():
+                return self._no("cooldown")
+            # Keep the roomiest login active; the margin is the anti-flap band.
+            return self._perform(active, roomier[0], "rebalance")
         trigger = "at-limit" if active.exhausted else "proactive"
         if trigger == "proactive" and self._in_cooldown():
             return self._no("cooldown")

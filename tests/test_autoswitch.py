@@ -7350,3 +7350,37 @@ class TestOptionalWarmup:
         assert harness.engine.tick() == TickOutcome.NO_ACTION
         assert harness.events[-1].kind == "warmup"
 
+
+
+class TestRebalance:
+    """autoswitch.rebalancePct keeps the roomiest account active below the threshold."""
+
+    def _harness(self, temp_home: Path, **settings) -> EngineHarness:
+        h = EngineHarness(temp_home, **settings)
+        h.seed(1, "a@example.com")
+        h.seed(2, "b@example.com")
+        h.seed(3, "c@example.com")
+        h.make_live("a@example.com", 1)
+        return h
+
+    def test_below_threshold_moves_to_an_account_with_more_room_by_the_margin(self, temp_home):
+        h = self._harness(temp_home, rebalance_pct=20)
+        outcome = h.tick_with_usage({"1": _usage(50), "2": _usage(40), "3": _usage(10)})
+        assert outcome is TickOutcome.SWITCHED
+        assert h.active_number() == 3
+        switch = next(e for e in h.events if isinstance(e, SwitchEvent))
+        assert switch.trigger == "rebalance"
+
+    def test_stays_when_nothing_beats_the_active_by_the_margin(self, temp_home):
+        h = self._harness(temp_home, rebalance_pct=20)
+        outcome = h.tick_with_usage({"1": _usage(30), "2": _usage(15), "3": _usage(20)})
+        assert outcome is TickOutcome.NO_ACTION
+        assert h.active_number() == 1
+        reasons = [e.reason for e in h.events if isinstance(e, NoSwitchEvent)]
+        assert reasons == ["below-threshold"]
+
+    def test_zero_keeps_the_threshold_only_behavior(self, temp_home):
+        h = self._harness(temp_home, rebalance_pct=0)
+        outcome = h.tick_with_usage({"1": _usage(50), "2": _usage(10), "3": _usage(10)})
+        assert outcome is TickOutcome.NO_ACTION
+        assert h.active_number() == 1

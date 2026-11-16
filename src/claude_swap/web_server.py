@@ -151,8 +151,13 @@ class Poller(threading.Thread):
         self._stopping = threading.Event()
 
     def run(self) -> None:
+        from claude_swap.launch_agent import WEB_LABEL
+        from claude_swap.service_freshness import FreshnessCheck
+
+        freshness = FreshnessCheck(WEB_LABEL)
         while not self._stopping.is_set():
             self._snapshot.refresh()
+            freshness.tick()
             self._stopping.wait(self._interval)
 
     def stop(self) -> None:

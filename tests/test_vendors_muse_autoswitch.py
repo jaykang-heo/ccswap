@@ -155,3 +155,18 @@ def test_a_lane_runs_on_the_key_of_the_login_with_most_room(monkeypatch):
     spent = [login(1, 2, 100, key="K1"), login(2, None, None, key="K2")]
     monkeypatch.setattr(muse_autoswitch, "login_quotas", lambda service: spent)
     assert muse_autoswitch.lane_key(object(), AutoSwitchSettings()) is None
+
+
+def test_rebalance_moves_below_every_gate_to_the_roomiest_login(tmp_path):
+    quotas = [login(1, 50, 60, active=True), login(2, 0, 10), login(3, 0, 30)]
+    eng, service, events = engine(tmp_path, quotas, rebalance_pct=20)
+    assert eng.tick() is TickOutcome.SWITCHED
+    assert service.switched == ["a2"]
+    assert next(e for e in events if e.kind == "switch").trigger == "rebalance"
+
+
+def test_rebalance_stays_when_the_gain_is_under_the_margin(tmp_path):
+    quotas = [login(1, 20, 30, active=True), login(2, 0, 15)]
+    eng, service, events = engine(tmp_path, quotas, rebalance_pct=20)
+    assert eng.tick() is TickOutcome.NO_ACTION
+    assert service.switched == [] and reasons(events) == ["below-threshold"]

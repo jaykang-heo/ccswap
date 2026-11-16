@@ -718,6 +718,10 @@ def run(switcher) -> int:
             self._start_claude_work()
             # Background display refresh on the user's interval, plus a fast
             # UI-sync tick that applies snapshots + engine events on the main thread.
+            from claude_swap.launch_agent import LABEL as _MENUBAR_LABEL
+            from claude_swap.service_freshness import FreshnessCheck
+
+            self._freshness = FreshnessCheck(_MENUBAR_LABEL)
             self.refresh_timer = rumps.Timer(self.on_refresh_tick, self.settings.refresh_interval)
             self.refresh_timer.start()
             self.sync_timer = rumps.Timer(self.on_sync_tick, 1)
@@ -900,6 +904,7 @@ def run(switcher) -> int:
             return cb
 
         def on_refresh_tick(self, _timer):
+            self._freshness.tick()
             self.refresh_async()
 
         def on_sync_tick(self, _timer):
