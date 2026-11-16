@@ -196,7 +196,7 @@ def test_page_references_non_claude_tools_and_compact_rows(running):
     html = body.decode()
     assert "snapshot.tools" in html
     assert "resetCredits" in html
-    assert 'el("span","rank"' in html
+    assert 'MOST ROOM' in html and 'STALE' in html and 'not started' in html
 
 
 def test_api_usage_orders_claude_accounts_by_headroom():
@@ -475,3 +475,16 @@ def test_dashboard_overview_fetches_legacy_tools():
 def test_tool_sections_cannot_collapse():
     html = (Path(web_server.__file__).parent / "web_assets" / "index.html").read_text()
     assert "<details" not in html and '"details"' not in html
+
+
+def test_page_uses_one_token_layer_and_no_raw_colors_outside_it():
+    html = (Path(web_server.__file__).parent / "web_assets" / "index.html").read_text()
+    style = html.split("<style>")[1].split("</style>")[0]
+    tokens, rules = style.split("}", 1)
+    assert "--color-ground" in tokens
+    assert "#" not in rules.replace("#0b0b0d", "")
+
+
+def test_page_reads_reset_times_as_epoch_or_iso_and_falls_back_to_resets_on():
+    html = (Path(web_server.__file__).parent / "web_assets" / "index.html").read_text()
+    assert "Date.parse(ts)" in html and "w.resetsOn" in html
