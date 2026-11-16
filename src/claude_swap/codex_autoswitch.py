@@ -176,16 +176,20 @@ class CodexAutoSwitchEngine:
         active_reset = resets[current]
 
         if below_threshold:
-            if self.settings.strategy != "consume-first" or active_reset is None:
+            if self.settings.strategy == "consume-first" and active_reset is not None:
+                # Burn the soonest-expiring weekly quota first. Only a strictly sooner
+                # reset moves, so consume-first cannot ping-pong between accounts.
+                trigger = "consume-first"
+            elif self.settings.strategy != "consume-first" and self.settings.rebalance_pct > 0:
+                # Keep the roomiest account active; the margin is the anti-flap band.
+                trigger = "rebalance"
+            else:
                 return self._below_threshold(usage[current], active_headroom, overrides)
-            # Burn the soonest-expiring weekly quota first. Only a strictly sooner
-            # reset moves, so consume-first cannot ping-pong between accounts.
-            trigger = "consume-first"
         else:
             trigger = "at-limit" if active_headroom <= 0 else "proactive"
 
         state = self._read_state()
-        if trigger in ("proactive", "consume-first") and self._in_cooldown(state):
+        if trigger in ("proactive", "consume-first", "rebalance") and self._in_cooldown(state):
             self._emit(NoSwitchEvent(reason="cooldown"))
             return TickOutcome.NO_ACTION
 
@@ -213,6 +217,11 @@ class CodexAutoSwitchEngine:
             if trigger == "proactive" and (
                 candidate_pct > hysteresis_bar
                 or candidate_pct >= active_pct
+            ):
+                continue
+            if trigger == "rebalance" and (
+                candidate_pct >= self.settings.threshold
+                or candidate_headroom < active_headroom + self.settings.rebalance_pct
             ):
                 continue
             if trigger == "consume-first":

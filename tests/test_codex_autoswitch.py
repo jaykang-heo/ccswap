@@ -409,3 +409,26 @@ def test_best_ranks_candidates_by_distance_to_their_gates(tmp_path, monkeypatch)
     # Polls continue reporting real quota headroom, not policy-adjusted values.
     assert events[0].headroom["2"] == 60
     assert events[0].headroom["3"] == 50
+
+
+def test_rebalance_moves_below_threshold_to_an_account_with_more_room(tmp_path, monkeypatch):
+    monkeypatch.setattr("claude_swap.codex.is_codex_running", lambda: False)
+    switcher = FakeCodexSwitcher(tmp_path, (_account("1", 60, active=True), _account("2", 10)))
+    events = []
+    engine = CodexAutoSwitchEngine(
+        switcher, AutoSwitchSettings(rebalance_pct=20), events.append, clock=lambda: 1_000
+    )
+    assert engine.tick() is TickOutcome.SWITCHED
+    assert switcher.switched_to == ["2"]
+    assert events[-1].trigger == "rebalance"
+
+
+def test_rebalance_stays_when_no_account_beats_the_margin(tmp_path):
+    switcher = FakeCodexSwitcher(tmp_path, (_account("1", 30, active=True), _account("2", 15)))
+    events = []
+    engine = CodexAutoSwitchEngine(
+        switcher, AutoSwitchSettings(rebalance_pct=20), events.append, clock=lambda: 1_000
+    )
+    assert engine.tick() is TickOutcome.NO_ACTION
+    assert switcher.switched_to == []
+    assert events[-1].reason == "below-threshold"

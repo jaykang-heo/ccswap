@@ -57,6 +57,11 @@ class AutoSwitchSettings:
     interval_seconds: float = 60.0
     cooldown_seconds: float = 300.0
     hysteresis_pct: float = 10.0
+    # Below the threshold, move to an account with at least this many more
+    # points of headroom than the active one, so the active login is always
+    # the roomiest. The margin is also the anti-flap band. 0 = switch only at
+    # the threshold (upstream behavior).
+    rebalance_pct: float = 0.0
     strategy: str = "best"  # "best" (most headroom) or "consume-first" (soonest weekly reset)
     include_api_key_accounts: bool = False
     unhealthy_ticks: int = 3
@@ -198,6 +203,10 @@ SETTING_SPECS: dict[str, SettingSpec] = {
         SettingSpec(
             "autoswitch", "hysteresisPct", "hysteresis_pct", "float", 0.0, 50.0,
             help="A target must beat the active account by this many pct",
+        ),
+        SettingSpec(
+            "autoswitch", "rebalancePct", "rebalance_pct", "float", 0.0, 100.0,
+            help="Below the threshold, switch to an account with this many more pct of headroom (0 = only at the threshold)",
         ),
         SettingSpec(
             "autoswitch", "strategy", "strategy", "choice",

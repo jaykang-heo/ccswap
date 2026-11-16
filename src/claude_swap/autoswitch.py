@@ -389,7 +389,7 @@ class PollEvent(AutoSwitchEvent):
 @dataclass(frozen=True)
 class SwitchEvent(AutoSwitchEvent):
     kind: ClassVar[str] = "switch"
-    trigger: str  # "proactive" | "at-limit" | "failover" | "consume-first"
+    trigger: str  # "proactive" | "at-limit" | "failover" | "consume-first" | "rebalance"
     from_ref: dict | None
     to_ref: dict | None
     warnings: list[str] = field(default_factory=list)
@@ -1137,7 +1137,12 @@ class AutoSwitchEngine:
                 )
             else:
                 utilization_over = (100.0 - active_headroom) >= settings.threshold
-            if not utilization_over:
+            if not utilization_over and settings.strategy != "consume-first" and settings.rebalance_pct > 0:
+                # Keep the roomiest account active: below the threshold, move to an
+                # account with rebalance_pct more headroom (the margin is the
+                # anti-flap band). Candidate selection decides whether one exists.
+                trigger = "rebalance"
+            elif not utilization_over:
                 if settings.strategy != "consume-first":
                     self._emit(
                         NoSwitchEvent(
@@ -1205,7 +1210,7 @@ class AutoSwitchEngine:
                 return TickOutcome.NO_ACTION
             trigger = "failover"
 
-        if trigger in ("proactive", "consume-first") and self._in_cooldown(state):
+        if trigger in ("proactive", "consume-first", "rebalance") and self._in_cooldown(state):
             self._emit(NoSwitchEvent(reason="cooldown"))
             return TickOutcome.NO_ACTION
 
@@ -1228,7 +1233,7 @@ class AutoSwitchEngine:
             else []
         )
         if (
-            trigger == "consume-first"
+            trigger in ("consume-first", "rebalance")
             and not oauth_candidates
             and active_headroom is not None
         ):
@@ -1379,7 +1384,7 @@ class AutoSwitchEngine:
                 now=decided_now,
             )
 
-        if not ordered and api_key_candidates and trigger != "consume-first":
+        if not ordered and api_key_candidates and trigger not in ("consume-first", "rebalance"):
             # Last resort when we must move: metered API-key accounts
             # (unmeasurable headroom). Never for a below-threshold consume-first
             # nudge — those API-key accounts have no weekly window to consume.
@@ -1396,6 +1401,18 @@ class AutoSwitchEngine:
                     )
                 )
                 return TickOutcome.BLOCKED
+            if trigger == "rebalance":
+                # Below the threshold and nothing roomier by the margin: the
+                # active account is already the best, so stay.
+                self._emit(
+                    NoSwitchEvent(
+                        reason="below-threshold",
+                        detail=self._below_threshold_detail(
+                            usage.get(current), active_headroom
+                        ),
+                    )
+                )
+                return TickOutcome.NO_ACTION
             if trigger == "consume-first":
                 # Below the threshold and healthy: staying put is a correct
                 # outcome, never a block. Distinguish *why* nothing qualified
@@ -1633,7 +1650,7 @@ class AutoSwitchEngine:
         left, or only a different active?
         """
         came_from = state.get("lastSwitchFrom")
-        if trigger not in ("proactive", "consume-first") or came_from is None:
+        if trigger not in ("proactive", "consume-first", "rebalance") or came_from is None:
             return None
         # Only while we are still standing where that switch put us. A manual
         # switch away already undid the move, so there is nothing left to
@@ -2039,7 +2056,7 @@ class AutoSwitchEngine:
                 if all_above
                 else 0.0
             )
-            if trigger in ("proactive", "consume-first"):
+            if trigger in ("proactive", "consume-first", "rebalance"):
                 # Landing must be healthy: an account at/over the threshold
                 # would re-trigger on the very next tick. At-limit and failover
                 # are escapes that skip this whole block — any account with real
@@ -2110,7 +2127,12 @@ class AutoSwitchEngine:
                     # policy scale that margin is slack-to-the-nearest-gate,
                     # which equals raw headroom when every gate shares one
                     # threshold.
-                    if p - active_policy < settings.hysteresis_pct:
+                    margin = (
+                        settings.rebalance_pct
+                        if trigger == "rebalance"
+                        else settings.hysteresis_pct
+                    )
+                    if p - active_policy < margin:
                         continue
             if all_above and trigger in ("proactive", "consume-first"):
                 # Ranked on the axis its own gate decided, and TIERED so the two
@@ -2339,7 +2361,7 @@ class AutoSwitchEngine:
         # state lock.
         with self._state_lock():
             state = self._read_state()
-            if trigger in ("proactive", "consume-first") and self._in_cooldown(state):
+            if trigger in ("proactive", "consume-first", "rebalance") and self._in_cooldown(state):
                 self._emit(NoSwitchEvent(reason="cooldown"))
                 return TickOutcome.NO_ACTION
 

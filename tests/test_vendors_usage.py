@@ -546,7 +546,13 @@ def test_usage_command_json_and_unknown_tool(tmp_path, capsys):
 def test_usage_command_human_output(tmp_path, capsys):
     from claude_swap.vendors.cli import usage_command
 
-    svc, _ = muse_world(tmp_path, ok(json.dumps({"allowance": MUSE_14})))
+    # Resets in the future relative to now: the fixed MUSE_14 stamps passed on 2026-11-16
+    # and turned "resets" into "reset due".
+    now_ms = int(time.time() * 1000)
+    allowance = json.loads(json.dumps(MUSE_14))
+    allowance["window"]["resetsAtMs"] = now_ms + 3 * 3600 * 1000
+    allowance["weekly"]["resetsAtMs"] = now_ms + 3 * 86400 * 1000
+    svc, _ = muse_world(tmp_path, ok(json.dumps({"allowance": allowance})))
     assert usage_command(["muse"], Overview(svc, legacy=[])) == 0
     out = capsys.readouterr().out
     assert "Muse Code" in out and "5-hour window 0% used" in out and "resets" in out
