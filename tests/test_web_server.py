@@ -499,3 +499,23 @@ def test_api_usage_carries_the_rebalance_margin_the_engines_switch_at():
     assert snapshot.refresh()
     assert snapshot.document()["autoswitch"] == {"rebalancePct": 20.0}
     assert "_webRebalancePct" not in snapshot.document()["claude"]
+
+
+def test_a_restart_serves_the_last_tools_until_the_first_collection(tmp_path):
+    cache = tmp_path / "cache" / "web_tools.json"
+    first = web_server.Snapshot(lambda: None, tools_cache=cache)
+    first.set_tools([{"tool": "kiro", "accounts": [{"alias": "a"}]}], generated_at=1_000.0)
+    restarted = web_server.Snapshot(lambda: None, tools_cache=cache)
+    assert restarted.load_tools_cache()
+    doc = restarted.document()
+    assert [t["tool"] for t in doc["tools"]] == ["kiro"]
+    assert doc["toolsGeneratedAt"] is not None
+    restarted.set_tools([{"tool": "codex", "accounts": []}])
+    assert [t["tool"] for t in restarted.document()["tools"]] == ["codex"]
+
+
+def test_a_missing_or_broken_tools_cache_is_ignored(tmp_path):
+    cache = tmp_path / "web_tools.json"
+    assert not web_server.Snapshot(lambda: None, tools_cache=cache).load_tools_cache()
+    cache.write_text("not json")
+    assert not web_server.Snapshot(lambda: None, tools_cache=cache).load_tools_cache()

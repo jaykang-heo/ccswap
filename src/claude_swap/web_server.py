@@ -25,7 +25,10 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
+from pathlib import Path
 from urllib.parse import urlsplit
+
+from claude_swap.fsutil import atomic_write_bytes
 
 DEFAULT_PORT = 4592
 HOST = "127.0.0.1"
@@ -57,8 +60,10 @@ class Snapshot:
         self,
         provider: Callable[[], dict | None],
         clock: Callable[[], float] = time.time,
+        tools_cache: Path | None = None,
     ) -> None:
         self._provider = provider
+        self._tools_cache = tools_cache
         self._clock = clock
         self._lock = threading.Lock()
         self._payload: dict | None = None
@@ -121,6 +126,36 @@ class Snapshot:
         with self._lock:
             self._tools = tools
             self._tools_generated_at = generated_at if generated_at is not None else time.time()
+        if self._tools_cache is not None:
+            try:
+                self._tools_cache.parent.mkdir(parents=True, exist_ok=True)
+                atomic_write_bytes(
+                    self._tools_cache,
+                    json.dumps({"generatedAt": self._tools_generated_at, "tools": tools}).encode(),
+                )
+            except OSError:
+                _logger.debug("web tools cache not written", exc_info=True)
+
+    def load_tools_cache(self) -> bool:
+        """Serve the last collected tools until the first fresh collection lands.
+
+        A restart otherwise shows Claude alone for about a minute: the vendor
+        overview takes ~60 s, and on 2026-11-16 every restart dropped Codex, Muse
+        and Kiro from the page for that long.
+        """
+        if self._tools_cache is None:
+            return False
+        try:
+            cached = json.loads(self._tools_cache.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        tools, generated_at = cached.get("tools"), cached.get("generatedAt")
+        if not isinstance(tools, list) or not isinstance(generated_at, (int, float)):
+            return False
+        with self._lock:
+            if self._tools_generated_at is None:
+                self._tools, self._tools_generated_at = tools, float(generated_at)
+        return True
 
 
 class ToolsPoller(threading.Thread):
@@ -253,7 +288,10 @@ def _overview_tools() -> list[dict]:
 
 def serve(port: int = DEFAULT_PORT, provider: Callable[[], dict | None] | None = None) -> int:
     """Run the dashboard in the foreground until interrupted."""
-    snapshot = Snapshot(provider or claude_payload)
+    from claude_swap.paths import get_backup_root
+
+    snapshot = Snapshot(provider or claude_payload, tools_cache=get_backup_root() / "cache" / "web_tools.json")
+    snapshot.load_tools_cache()
     server = make_server(port, snapshot)
     poller = Poller(snapshot)
     tools_poller = ToolsPoller(snapshot)
