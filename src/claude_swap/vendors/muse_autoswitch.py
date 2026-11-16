@@ -134,6 +134,11 @@ def lane_key(service: VendorService, settings: AutoSwitchSettings) -> tuple[Logi
 class MuseAutoSwitchEngine:
     """Switch the signed-in Muse login once it reaches a gate."""
 
+    # Per-tool facts; a subclass for another vendor overrides these three.
+    tool = TOOL
+    state_filename = STATE_FILENAME
+    restart_hint = RESTART_HINT
+
     def __init__(
         self,
         service: VendorService,
@@ -146,16 +151,20 @@ class MuseAutoSwitchEngine:
         quotas: Callable[[], list[LoginQuota]] | None = None,
     ) -> None:
         self.service = service
-        self._quotas = quotas or (lambda: login_quotas(service))
+        self._quotas = quotas or (lambda: self.login_quotas(service))
         self.settings = settings
         self.on_event = on_event
         self.dry_run = dry_run
-        self.state_path = state_path or (service.store.root / STATE_FILENAME)
+        self.state_path = state_path or (service.store.root / self.state_filename)
         self.clock = clock
         self._stop = threading.Event()
 
+    @staticmethod
+    def login_quotas(service: VendorService) -> list[LoginQuota]:
+        return login_quotas(service)
+
     def _state_lock(self) -> FileLock:
-        return FileLock(self.state_path.parent / ".muse_autoswitch_state.lock")
+        return FileLock(self.state_path.parent / f".{self.tool}_autoswitch_state.lock")
 
     def _read_state(self) -> dict:
         try:
@@ -242,16 +251,16 @@ class MuseAutoSwitchEngine:
             trigger=trigger,
             from_ref=active.ref(),
             to_ref=target.ref(),
-            warnings=[RESTART_HINT],
+            warnings=[self.restart_hint],
             dry_run=self.dry_run,
         )
         if self.dry_run:
             self.on_event(event)
             return TickOutcome.SWITCHED
         with self._state_lock():
-            if trigger == "proactive" and self._in_cooldown():
+            if trigger in ("proactive", "rebalance") and self._in_cooldown():
                 return self._no("cooldown")
-            self.service.switch(TOOL, target.alias)
+            self.service.switch(self.tool, target.alias)
             state = self._read_state()
             state.update(
                 schemaVersion=STATE_SCHEMA_VERSION,
