@@ -88,11 +88,13 @@ class Snapshot:
             payload, generated_at = self._payload, self._generated_at
             tools, tools_generated_at = self._tools, self._tools_generated_at
         claude = payload
+        rebalance = 0.0
         if isinstance(claude, dict) and isinstance(claude.get("accounts"), list):
             claude = dict(claude)
             strategy = claude.pop("_webOrderStrategy", "best")
             models = claude.pop("_webModels", ())
             windows = claude.pop("_webAccountWindows", ("5h", "7d"))
+            rebalance = claude.pop("_webRebalancePct", 0.0)
             claude["accounts"] = order_accounts(
                 "claude", claude["accounts"], strategy=strategy,
                 models=models, account_windows=windows,
@@ -105,6 +107,8 @@ class Snapshot:
             ordered_tools.append(tool)
         return {
             "generatedAt": _iso_utc(generated_at) if generated_at is not None else None,
+            # The page marks a better account only by the margin the engines switch at.
+            "autoswitch": {"rebalancePct": rebalance},
             "claude": claude,
             "tools": ordered_tools,
             "toolsGeneratedAt": (
@@ -221,9 +225,10 @@ def claude_payload() -> dict:
         raise RuntimeError("list_accounts returned no JSON payload")
     from claude_swap.settings import load_settings
     _threshold, models, windows = switcher._poll_policy_inputs()
-    strategy = load_settings(switcher.backup_dir).strategy
+    settings = load_settings(switcher.backup_dir)
     payload = dict(payload)
-    payload["_webOrderStrategy"] = strategy
+    payload["_webOrderStrategy"] = settings.strategy
+    payload["_webRebalancePct"] = settings.rebalance_pct
     payload["_webModels"] = models
     payload["_webAccountWindows"] = windows
     return payload
