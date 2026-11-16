@@ -106,7 +106,7 @@ def test_api_usage_before_the_first_collection_reports_no_reading():
         server.server_close()
 
     assert json.loads(body) == {
-        "generatedAt": None, "claude": None, "tools": [], "toolsGeneratedAt": None
+        "generatedAt": None, "autoswitch": {"rebalancePct": 0.0}, "claude": None, "tools": [], "toolsGeneratedAt": None
     }
 
 
@@ -194,9 +194,10 @@ def test_a_tool_collection_error_does_not_drop_other_overview_tools(monkeypatch)
 def test_page_references_non_claude_tools_and_compact_rows(running):
     _status, _headers, body = _get(running.port, "/")
     html = body.decode()
-    assert "snapshot.tools" in html
+    assert "snap.tools" in html
     assert "resetCredits" in html
-    assert 'MOST ROOM' in html and 'STALE' in html and 'not started' in html
+    assert 'roomiest account' in html and 'STALE' in html and 'not started' in html
+    assert 'rebalancePct' in html  # a better account is marked only by the engines' switch margin
 
 
 def test_api_usage_orders_claude_accounts_by_headroom():
@@ -482,9 +483,19 @@ def test_page_uses_one_token_layer_and_no_raw_colors_outside_it():
     style = html.split("<style>")[1].split("</style>")[0]
     tokens, rules = style.split("}", 1)
     assert "--color-ground" in tokens
-    assert "#" not in rules.replace("#0b0b0d", "")
+    import re
+    assert not re.findall(r":\s*#[0-9a-fA-F]{3,8}\b", rules), "raw hex colour outside the token layer"
 
 
 def test_page_reads_reset_times_as_epoch_or_iso_and_falls_back_to_resets_on():
     html = (Path(web_server.__file__).parent / "web_assets" / "index.html").read_text()
     assert "Date.parse(ts)" in html and "w.resetsOn" in html
+
+
+def test_api_usage_carries_the_rebalance_margin_the_engines_switch_at():
+    claude = {"accounts": [{"number": 1, "usageStatus": "ok", "usage": {"fiveHour": {"pct": 10}}}],
+              "_webRebalancePct": 20.0}
+    snapshot = web_server.Snapshot(lambda: claude)
+    assert snapshot.refresh()
+    assert snapshot.document()["autoswitch"] == {"rebalancePct": 20.0}
+    assert "_webRebalancePct" not in snapshot.document()["claude"]
