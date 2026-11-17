@@ -40,6 +40,7 @@ def bar_cells(
     stale: bool = False,
     threshold: float | None = None,
     palette: Palette = Palette.DARK,
+    color: str | None = None,
 ) -> Text:
     """Just the bar glyphs: severity-colored fill, track, optional tick."""
     text = Text()
@@ -53,7 +54,7 @@ def bar_cells(
     tick_at: int | None = None
     if threshold is not None:
         tick_at = min(width - 1, max(0, round(threshold / 100.0 * width)))
-    color = palette.severity(pct)
+    color = color or palette.severity(pct)
     fill_style = f"{color} dim" if stale else color
     for i in range(width):
         if tick_at is not None and i == tick_at:
@@ -76,17 +77,18 @@ def usage_bar(
     stale: bool = False,
     threshold: float | None = None,
     palette: Palette = Palette.DARK,
+    color: str | None = None,
 ) -> Text:
     """One full bar line: ``5h ━━━━╸────┃──  47%  resets 2h 13m · 20:39``."""
     text = Text()
     text.append(f"{label} ", style=palette.muted)
     text.append(
-        bar_cells(pct, width, stale=stale, threshold=threshold, palette=palette)
+        bar_cells(pct, width, stale=stale, threshold=threshold, palette=palette, color=color)
     )
     if pct is None:
         text.append("  usage unknown", style=palette.muted)
     else:
-        color = palette.severity(pct)
+        color = color or palette.severity(pct)
         text.append(f" {pct:3.0f}%", style=f"{color} dim" if stale else color)
     if suffix:
         text.append(f"  {suffix}", style=palette.muted)
@@ -272,6 +274,38 @@ def _identity(acc: AccountSnapshot, *, mask: bool) -> tuple[str, str, str]:
     )
 
 
+def spend_color(acc: AccountSnapshot, label: str, palette: Palette) -> str | None:
+    """Bar colour from the spend plan: use-now accent, blocked red, else the window's tone."""
+    spend = acc.spend
+    if spend is None:
+        return None
+    if label == "7d" and spend.state == "use_now":
+        return palette.accent
+    tone = spend.tones.get(label)
+    return {"limit": palette.sev_crit, "near": palette.sev_warn, "plain": palette.muted}.get(tone or "")
+
+
+_SPEND_TAG = {"use_now": "USE NOW", "next": "NEXT", "blocked": "BLOCKED"}
+
+
+def spend_tag(acc: AccountSnapshot, palette: Palette, now: float, tr: Callable[[str], str] = str) -> Text:
+    """``USE NOW · 22% lost at reset in 11h`` for the account header; empty when nothing to say."""
+    text = Text()
+    spend = acc.spend
+    if spend is None:
+        return text
+    word = _SPEND_TAG.get(spend.state)
+    if word:
+        style = f"bold {palette.accent}" if spend.state == "use_now" else (
+            palette.sev_crit if spend.state == "blocked" else palette.muted
+        )
+        text.append(f"  {tr(word)}", style=style)
+    if spend.waste_pct and spend.weekly_resets_at:
+        hours = max(0, int((spend.weekly_resets_at - now) // 3600))
+        text.append(f"  {spend.waste_pct}% {tr('lost at reset in')} {hours}h", style=f"bold {palette.accent}")
+    return text
+
+
 def account_card_text(
     acc: AccountSnapshot,
     width: int,
@@ -296,6 +330,7 @@ def account_card_text(
     else:
         text.append(email, style=palette.foreground)
     text.append(f"  [{org}]", style=palette.muted)
+    text.append(spend_tag(acc, palette, now, tr))
     if tag:
         text.append(f"  {tag}", style=palette.muted)
     if acc.is_active:
@@ -374,6 +409,7 @@ def account_card_text(
                     stale=stale,
                     threshold=row_threshold,
                     palette=palette,
+                    color=spend_color(acc, label, palette),
                 )
             )
     if credits:

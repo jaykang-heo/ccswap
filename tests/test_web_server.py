@@ -196,8 +196,10 @@ def test_page_references_non_claude_tools_and_compact_rows(running):
     html = body.decode()
     assert "snap.tools" in html
     assert "resetCredits" in html
-    assert 'roomiest account' in html and 'STALE' in html and 'not started' in html
-    assert 'rebalancePct' in html  # a better account is marked only by the engines' switch margin
+    assert 'STALE' in html and 'not started' in html
+    # The header and bars follow the spend plan, never a headroom race the engine no longer runs.
+    assert 'use now: ' in html and 'lost at reset in' in html and 'USE NOW' in html
+    assert 'roomiest account' not in html and '% room · switch at' not in html
 
 
 def test_api_usage_orders_claude_accounts_by_headroom():

@@ -137,6 +137,9 @@ def _pace_marker(window: dict, fetched_at: float | None) -> str:
     return "  (ahead of pace)" if result and result.ahead else ""
 
 
+_SPEND_WORDS = {"use_now": "USE NOW", "next": "next", "blocked": "blocked"}
+
+
 def _format_usage_lines(usage: dict, fetched_at: float | None = None) -> list[str]:
     # Collect (label, body) rows first, then pad every label to the widest one so
     # per-model names (e.g. "Fable") don't shift the columns of the other lines.
@@ -2037,7 +2040,7 @@ class ClaudeAccountSwitcher:
         """
         accounts_info = self._build_accounts_info()
         entries = self._collect_usage_entries(accounts_info, fetch=fetch)
-        accounts_info = self._in_use_first_order(accounts_info, entries)
+        accounts_info, plan = self._spend_view(accounts_info, entries)
         seq_data = self._get_sequence_data() or {}
         active_number: str | None = None
         accounts: list[AccountSnapshot] = []
@@ -2057,6 +2060,7 @@ class ClaudeAccountSwitcher:
                     usage=entries[n],
                     alias=alias,
                     disabled=self._disabled_from_data(seq_data, n),
+                    spend=plan.get(num),
                 )
             )
         return AccountsSnapshot(
@@ -6098,30 +6102,32 @@ class ClaudeAccountSwitcher:
             login_expires_at=oauth.login_expires_at_iso(creds),
         )
 
-    def _in_use_first_order(
+    def _spend_view(
         self,
         accounts_info: list[tuple[int, str, str, str, bool, str, str]],
         entries: dict[str, UsageEntry],
-    ) -> list[tuple[int, str, str, str, bool, str, str]]:
-        """Accounts in the order auto-switch spends them: the web dashboard's key."""
-        from claude_swap.settings import load_settings
-        from claude_swap.web_order import order_accounts
+    ) -> tuple[list[tuple[int, str, str, str, bool, str, str]], dict]:
+        """Accounts in the order auto-switch spends them, with each one's spend plan."""
+        from claude_swap.settings import gate_thresholds, load_settings
+        from claude_swap.spend import spend_plan
 
         _threshold, models, windows = self._poll_policy_inputs()
-        strategy = load_settings(self.backup_dir).strategy
+        settings = load_settings(self.backup_dir)
         seq_data = self._get_sequence_data() or {}
         now = self._usage_store.clock()
         by_number = {info[0]: info for info in accounts_info}
         rows = [self._list_row(info, entries[str(info[0])], seq_data, now) for info in accounts_info]
-        ordered = order_accounts(
-            "claude", rows, strategy=strategy, models=models, account_windows=windows
+        plan = spend_plan(
+            rows, strategy=settings.strategy, gates=gate_thresholds(settings),
+            now=now, models=models, windows=windows,
         )
-        return [by_number[row["number"]] for row in ordered]
+        return [by_number[number] for number in plan], plan
 
     def _build_list_payload(
         self,
         accounts_info: list[tuple[int, str, str, str, bool, str, str]],
         entries: dict[str, UsageEntry],
+        plan: dict | None = None,
     ) -> dict:
         """Build the ``--list --json`` payload from gathered account + usage data."""
         active_num: int | None = None
@@ -6131,7 +6137,10 @@ class ClaudeAccountSwitcher:
         for info in accounts_info:
             if info[4]:
                 active_num = info[0]
-            accounts.append(self._list_row(info, entries[str(info[0])], seq_data, now))
+            row = self._list_row(info, entries[str(info[0])], seq_data, now)
+            if plan and info[0] in plan:
+                row["spend"] = plan[info[0]].to_json()
+            accounts.append(row)
         payload = {
             "schemaVersion": SCHEMA_VERSION,
             "activeAccountNumber": active_num,
@@ -6180,10 +6189,10 @@ class ClaudeAccountSwitcher:
 
         accounts_info = self._build_accounts_info()
         entries = self._collect_usage_entries(accounts_info, fetch=fetch)
-        accounts_info = self._in_use_first_order(accounts_info, entries)
+        accounts_info, plan = self._spend_view(accounts_info, entries)
 
         if json_output:
-            return self._build_list_payload(accounts_info, entries)
+            return self._build_list_payload(accounts_info, entries, plan)
 
         seq_data = self._get_sequence_data() or {}
         print(bolded("Accounts:"))
@@ -6196,6 +6205,12 @@ class ClaudeAccountSwitcher:
                 markers += f" {bold_accent('(active)')}"
             if self._disabled_from_data(seq_data, str(num)):
                 markers += f" {muted('(disabled)')}"
+            spend = plan.get(num)
+            if spend is not None and spend.state in _SPEND_WORDS:
+                markers += f" {bold_accent(_SPEND_WORDS[spend.state])}"
+            if spend is not None and spend.waste_pct and spend.weekly_resets_at:
+                hours = max(0, int((spend.weekly_resets_at - now_s) // 3600))
+                markers += f" {bold_accent(f'{spend.waste_pct}% lost at reset in {hours}h')}"
             print(f"  {num}: {label} {muted(f'[{tag}]')}{markers}")
             for line in _usage_entry_lines(entries[str(num)]):
                 print(f"     {line}")
