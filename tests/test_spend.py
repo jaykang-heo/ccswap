@@ -169,3 +169,14 @@ def test_a_non_numeric_pct_is_ignored_not_a_crash():
     row["usage"]["fiveHour"]["pct"] = "abc"
     plan = _plan([row])
     assert plan[1].state == "use_now" and "5h" not in plan[1].tones
+
+
+def test_the_menubar_row_names_the_state_and_the_quota_lost_at_reset():
+    from claude_swap.menubar import format_account_label
+
+    plan = _plan(SCREENSHOT)
+    usage = {"five_hour": {"pct": 44.0}, "seven_day": {"pct": 78.0}}
+    label = format_account_label(4, "api-contract@example.com", usage, now=NOW, spend=plan[4])
+    assert "USE NOW" in label and "22% lost at reset in 11h" in label
+    waiting = format_account_label(2, "b@example.com", usage, now=NOW, spend=plan[2])
+    assert "USE NOW" not in waiting and "lost" not in waiting

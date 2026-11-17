@@ -345,11 +345,26 @@ def format_account_label(
     disabled: bool = False,
     fetched_at: float | None = None,
     show_scoped: bool = True,
+    spend=None,
 ) -> str:
-    """Build one account row's menu label."""
+    """Build one account row's menu label; ``spend`` adds the spend plan's word."""
     label = f"{alias}  ({email})" if alias else email
     marker = "  (disabled)" if disabled else ""
-    return f"{num}  {label}{marker}  {usage_summary(usage, now, fetched_at, show_scoped)}"
+    row = f"{num}  {label}{marker}  {usage_summary(usage, now, fetched_at, show_scoped)}"
+    return row + _spend_suffix(spend, now if now is not None else time.time())
+
+
+_SPEND_WORDS = {"use_now": "USE NOW", "next": "next", "blocked": "blocked"}
+
+
+def _spend_suffix(spend, now: float) -> str:
+    if spend is None:
+        return ""
+    parts = [_SPEND_WORDS[spend.state]] if spend.state in _SPEND_WORDS else []
+    if spend.waste_pct and spend.weekly_resets_at:
+        hours = max(0, int((spend.weekly_resets_at - now) // 3600))
+        parts.append(f"{spend.waste_pct}% lost at reset in {hours}h")
+    return "  · " + " · ".join(parts) if parts else ""
 
 
 def _local_part(email: str, limit: int = 12) -> str:
@@ -475,7 +490,7 @@ EMPTY_SNAPSHOT: dict = {
     "accounts": [],
     "active_email": None,
     "active_usage": None,
-    "active_alias": None,
+    "active_alias": None,    "spend": {},
 }
 
 
@@ -493,8 +508,11 @@ def _adapt_snapshot(snap) -> dict:
     active_email = None
     active_usage = None
     active_alias = None
+    spend = {}
     for acc in snap.accounts:
         display = _account_display_usage(acc.usage)
+        if getattr(acc, "spend", None) is not None:
+            spend[acc.number] = acc.spend
         accounts.append(
             (
                 acc.number, acc.email, acc.is_active, display, acc.usage.last_good,
@@ -508,6 +526,7 @@ def _adapt_snapshot(snap) -> dict:
         "active_email": active_email,
         "active_usage": active_usage,
         "active_alias": active_alias,
+        "spend": spend,
     }
 
 
@@ -1209,6 +1228,7 @@ def run(switcher) -> int:
                     format_account_label(
                         num, email, display, alias=alias, disabled=disabled, fetched_at=fetched_at,
                         show_scoped=self.settings.title_scoped,
+                        spend=self.snapshot.get("spend", {}).get(str(num)),
                     ),
                     callback=self._make_switch_to(num),
                 )
