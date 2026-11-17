@@ -76,3 +76,21 @@ def test_a_spent_model_window_blocks_only_when_the_engine_watches_that_model():
     watched = spend_plan([row], strategy=s.strategy, gates=gate_thresholds(s), now=NOW, models=("Fable",))
     assert unwatched[1].state == "use_now" and unwatched[1].tones["Fable"] == "limit"
     assert watched[1].state == "blocked"
+
+
+def test_the_tui_card_says_use_now_and_how_much_is_lost_at_reset():
+    from claude_swap.models import AccountSnapshot
+    from claude_swap.tui.widgets import account_card_text
+    from claude_swap.usage_store import UsageEntry
+
+    plan = _plan(SCREENSHOT)
+    usage = {"five_hour": {"pct": 44.0, "resets_at": _iso(NOW + 4.3 * H)},
+             "seven_day": {"pct": 78.0, "resets_at": _iso(NOW + 11.1 * H)}}
+    acc = AccountSnapshot(
+        number="4", email="api-contract@example.com", org_name="Org", org_uuid="u",
+        is_active=True, kind="oauth", switchable=True,
+        usage=UsageEntry(last_good=usage, fetched_at=NOW, age_s=0.0), spend=plan[4],
+    )
+    text = account_card_text(acc, 100, now=NOW).plain
+    assert "USE NOW" in text
+    assert "22% lost at reset in 11h" in text
