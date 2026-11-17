@@ -278,10 +278,10 @@ async def test_dead_muse_login_is_restored_from_the_tui(tmp_path, monkeypatch):
         row = next(r for r in app.screen.query(AccountRow) if r.view.alias == "mis")
         assert row.view.active is True
         # The page's usage read heals the dead pointer from the stored token before drawing.
-        assert row.usage.state is UsageState.UNAVAILABLE
+        assert row.usage.state is UsageState.IDLE
         assert "no allowance" in row.usage.reason
         label = str(row.query_one(Static).render())
-        assert label.startswith("●") and "usage unavailable" in label
+        assert label.startswith("●") and "idle" in label
         meta = json.loads(login.read_text())["providers"]["meta"]
         assert meta["user_email"] == "m@x.com" and meta["access_token"] == "t-m"
         await goto(pilot, "s")

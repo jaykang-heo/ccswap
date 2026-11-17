@@ -8,6 +8,7 @@ capability protocols, so it contains no per-vendor branching.
 from __future__ import annotations
 
 import dataclasses
+import datetime
 import threading
 import time
 from collections.abc import Callable, Sequence
@@ -36,6 +37,17 @@ from claude_swap.vendors.core import (
 from claude_swap.vendors.registry import ToolRegistry
 from claude_swap.vendors.store import VendorStore, validate_alias
 from claude_swap.vendors.usage_cache import ACTIVE_KEY, UsageCache
+
+# Short-window keys whose reset ends the allowance period (Muse's 5h window).
+# An idle answer past all of their resets means a new, unused period.
+IDLE_SHORT_KEYS = ("five-hour",)
+
+
+def _short_windows_reset(windows, now: float) -> bool:
+    """Every short window in ``windows`` has passed its reset (or already rolled)."""
+    shorts = [w for w in windows if w.key in IDLE_SHORT_KEYS]
+    return bool(shorts) and all(w.resets_at is None or w.resets_at <= now for w in shorts)
+
 
 USAGE_TTL_OK = 60.0
 USAGE_TTL_FAIL = 15.0
@@ -395,6 +407,47 @@ class VendorService:
         if len(owners) == 1:
             self.store.replace_secret(owners[0], secret)
 
+    def _settle_idle(self, tool: str, account_key: str, fresh: UsageResult) -> UsageResult | None:
+        """An idle answer with a usable past: the rolled last reading, kept current.
+
+        When the last reading's short windows all reset since, the new period has
+        no usage yet, so the rolled numbers are today's truth, not a stale
+        failure.  Stored back with ``observed_at`` now so its age never grows.
+        Returns None when the short windows have not all reset (or there is no
+        past reading): the caller then keeps today's fallback below.
+        """
+        now = self._clock()
+        if account_key != ACTIVE_KEY and not any(
+            r.alias == account_key for r in self.store.records(tool)
+        ):
+            return None  # removed meanwhile (a late worker): never resurrect it
+        last = self.usage_store.get(tool, account_key)
+        if last is None or not last.windows or not _short_windows_reset(last.windows, now):
+            return None
+        rolled = last.rolled(now)
+        resets = [
+            w.resets_at
+            for w in last.windows
+            if w.key in IDLE_SHORT_KEYS and w.resets_at is not None
+        ]
+        if resets:
+            when = datetime.datetime.fromtimestamp(max(resets)).strftime("%a %H:%M")
+            hint = f"idle since {when}"
+            if last.hint:
+                hint += f"; {last.hint}"
+        else:
+            hint = last.hint or fresh.hint  # already rolled idle: keep its wording
+        result = dataclasses.replace(
+            rolled,
+            state=UsageState.IDLE,
+            reason=fresh.reason or last.reason,
+            hint=hint,
+            observed_at=now,
+            error=None,
+        )
+        self.usage_store.put(tool, account_key, result)
+        return result
+
     def _settle(
         self, adapter: ToolAdapter, tool: str, account_key: str, fresh: UsageResult
     ) -> tuple[UsageResult, str | None]:
@@ -407,6 +460,11 @@ class VendorService:
         in as someone else" means the credential changed, so older numbers do not apply.
         """
         owner = None
+        if fresh.state is UsageState.IDLE:
+            idle = self._settle_idle(tool, account_key, fresh)
+            if idle is not None:
+                return idle, None
+            # Not past every short reset (or no past reading): today's fallback.
         if fresh.state is UsageState.AVAILABLE:
             if account_key != ACTIVE_KEY and not any(
                 r.alias == account_key for r in self.store.records(tool)
@@ -434,7 +492,10 @@ class VendorService:
         if account_key != ACTIVE_KEY and fresh.retain_last:
             # An account's own last reading, when this answer is a transient gap.
             # A definitive "not this login" leaves retain_last false and drops the old numbers.
-            transient = transient or fresh.state is UsageState.UNAVAILABLE
+            # An idle answer before its short windows reset reads the same way.
+            transient = (
+                transient or fresh.state is UsageState.UNAVAILABLE or fresh.state is UsageState.IDLE
+            )
         if not transient:
             return fresh, None
         last = self.usage_store.get(tool, account_key)

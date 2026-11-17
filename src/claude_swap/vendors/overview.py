@@ -259,6 +259,7 @@ _STATE_WORDS = {
     UsageState.UNAVAILABLE: "usage unavailable",
     UsageState.UNSUPPORTED: "usage not reported",
     UsageState.UNAUTHENTICATED: "sign-in required",
+    UsageState.IDLE: "idle",
     UsageState.ERROR: "usage error",
 }
 
@@ -272,6 +273,8 @@ def usage_headline(result: UsageResult | None) -> str:
             return text
         if result.state is UsageState.STALE:
             return f"stale · {text}"
+        if result.state is UsageState.IDLE:
+            return f"idle · {text}"
         # Numbers kept beside a problem are the *last* reading, never presented as live.
         return f"{_STATE_WORDS.get(result.state, result.state.value)} · last {text}"
     return _STATE_WORDS.get(result.state, result.state.value)
@@ -329,6 +332,8 @@ def tool_usage_title(summary: ToolSummary) -> str:
             else "?"
         )
         return f"last reading ({who or 'active credential'}, {when}); refresh failed"
+    if usage is not None and usage.state is UsageState.IDLE:
+        return f"idle ({who or 'active credential'}); {usage.hint or 'no window started'}"
     if who and who != "active credential":
         return f"signed-in account ({who})"
     return "active credential (the tool does not report whose)"
@@ -352,6 +357,8 @@ def render_usage_lines(result: UsageResult, indent: str = "    ") -> list[str]:
             lines.append(f"{indent}{obs.kind.value}: {pairs}")
     if result.state is UsageState.STALE:
         lines.append(f"{indent}last reading (stale): {result.error or 'refresh failed'}")
+    elif result.state is UsageState.IDLE:
+        lines.append(f"{indent}idle: {result.hint or result.reason or 'no window started'}")
     elif result.state is not UsageState.AVAILABLE:
         word = _STATE_WORDS.get(result.state, result.state.value)
         lines.append(f"{indent}{word}: {result.reason or result.error or ''}".rstrip(": "))

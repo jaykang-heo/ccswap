@@ -140,6 +140,14 @@ def test_a_stale_reading_counts_and_a_bare_failure_does_not():
     assert _used(UsageResult(UsageState.UNAVAILABLE, "no allowance reported")) is None
 
 
+def test_an_idle_reading_counts_as_available():
+    windows = (
+        UsageWindow("five-hour", "5-hour window", "percent", used_percent=0.0),
+        UsageWindow("weekly", "Weekly", "percent", used_percent=43.0),
+    )
+    assert _used(UsageResult(UsageState.IDLE, windows=windows)) == {"5h": 0.0, "7d": 43.0}
+
+
 def test_a_lane_runs_on_the_key_of_the_login_with_most_room(monkeypatch):
     from claude_swap.vendors import muse_autoswitch
 

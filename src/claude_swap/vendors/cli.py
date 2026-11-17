@@ -454,7 +454,7 @@ def usage_problems(summaries, env) -> list[str]:
             )
         for view, usage in summary.accounts:
             shown = usage.state is UsageState.AVAILABLE or (
-                usage.state is UsageState.STALE and usage.has_data
+                usage.state in (UsageState.STALE, UsageState.IDLE) and usage.has_data
             )
             if view.registered and not shown:
                 detail = usage.reason or usage.error or usage.state.value
