@@ -137,7 +137,7 @@ class CswapApp(App):
             self._model_thresholds: str | None = settings.model_thresholds
         except Exception:
             self.threshold_pct = None
-            self._strategy_name = "best"
+            self._strategy_name = "consume-first"
             self._threshold_5h = None
             self._threshold_7d = None
             self._model_thresholds = None

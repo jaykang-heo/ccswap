@@ -2037,6 +2037,7 @@ class ClaudeAccountSwitcher:
         """
         accounts_info = self._build_accounts_info()
         entries = self._collect_usage_entries(accounts_info, fetch=fetch)
+        accounts_info = self._in_use_first_order(accounts_info, entries)
         seq_data = self._get_sequence_data() or {}
         active_number: str | None = None
         accounts: list[AccountSnapshot] = []
@@ -6071,6 +6072,52 @@ class ClaudeAccountSwitcher:
                 seen[key] = snum
         return out
 
+    def _list_row(
+        self,
+        info: tuple[int, str, str, str, bool, str, str],
+        entry: UsageEntry,
+        seq_data: dict,
+        now: float,
+    ) -> dict:
+        """One ``--list --json`` account row."""
+        num, email, org_name, org_uuid, is_active, creds, alias = info
+        # JSON carries the decision-grade value: last-good only while it is
+        # recent enough to act on (≤ STALE_OK_S), else unavailable. Showing
+        # older measurements is a human-display affordance only — scripts
+        # keying on usageStatus == "ok" must not act on arbitrarily old data.
+        return account_row(
+            num, email, org_name, org_uuid, is_active,
+            entry.decision_value(),
+            usage_fetched_at=entry.fetched_at,
+            usage_age_s=entry.age_s,
+            last_good_usage=entry.last_good,
+            last_error=entry.last_error,
+            backoff_until=(entry.backoff_until if entry.in_backoff(now) else None),
+            alias=alias,
+            disabled=self._disabled_from_data(seq_data, str(num)),
+            login_expires_at=oauth.login_expires_at_iso(creds),
+        )
+
+    def _in_use_first_order(
+        self,
+        accounts_info: list[tuple[int, str, str, str, bool, str, str]],
+        entries: dict[str, UsageEntry],
+    ) -> list[tuple[int, str, str, str, bool, str, str]]:
+        """Accounts in the order auto-switch spends them: the web dashboard's key."""
+        from claude_swap.settings import load_settings
+        from claude_swap.web_order import order_accounts
+
+        _threshold, models, windows = self._poll_policy_inputs()
+        strategy = load_settings(self.backup_dir).strategy
+        seq_data = self._get_sequence_data() or {}
+        now = self._usage_store.clock()
+        by_number = {info[0]: info for info in accounts_info}
+        rows = [self._list_row(info, entries[str(info[0])], seq_data, now) for info in accounts_info]
+        ordered = order_accounts(
+            "claude", rows, strategy=strategy, models=models, account_windows=windows
+        )
+        return [by_number[row["number"]] for row in ordered]
+
     def _build_list_payload(
         self,
         accounts_info: list[tuple[int, str, str, str, bool, str, str]],
@@ -6081,30 +6128,10 @@ class ClaudeAccountSwitcher:
         accounts = []
         seq_data = self._get_sequence_data() or {}
         now = self._usage_store.clock()
-        for num, email, org_name, org_uuid, is_active, creds, alias in accounts_info:
-            if is_active:
-                active_num = num
-            entry = entries[str(num)]
-            # JSON carries the decision-grade value: last-good only while it is
-            # recent enough to act on (≤ STALE_OK_S), else unavailable. Showing
-            # older measurements is a human-display affordance only — scripts
-            # keying on usageStatus == "ok" must not act on arbitrarily old data.
-            accounts.append(
-                account_row(
-                    num, email, org_name, org_uuid, is_active,
-                    entry.decision_value(),
-                    usage_fetched_at=entry.fetched_at,
-                    usage_age_s=entry.age_s,
-                    last_good_usage=entry.last_good,
-                    last_error=entry.last_error,
-                    backoff_until=(
-                        entry.backoff_until if entry.in_backoff(now) else None
-                    ),
-                    alias=alias,
-                    disabled=self._disabled_from_data(seq_data, str(num)),
-                    login_expires_at=oauth.login_expires_at_iso(creds),
-                )
-            )
+        for info in accounts_info:
+            if info[4]:
+                active_num = info[0]
+            accounts.append(self._list_row(info, entries[str(info[0])], seq_data, now))
         payload = {
             "schemaVersion": SCHEMA_VERSION,
             "activeAccountNumber": active_num,
@@ -6153,6 +6180,7 @@ class ClaudeAccountSwitcher:
 
         accounts_info = self._build_accounts_info()
         entries = self._collect_usage_entries(accounts_info, fetch=fetch)
+        accounts_info = self._in_use_first_order(accounts_info, entries)
 
         if json_output:
             return self._build_list_payload(accounts_info, entries)

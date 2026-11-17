@@ -62,7 +62,7 @@ class AutoSwitchSettings:
     # the roomiest. The margin is also the anti-flap band. 0 = switch only at
     # the threshold (upstream behavior).
     rebalance_pct: float = 0.0
-    strategy: str = "best"  # "best" (most headroom) or "consume-first" (soonest weekly reset)
+    strategy: str = "consume-first"  # "consume-first" (soonest weekly reset) or "best" (most headroom)
     include_api_key_accounts: bool = False
     unhealthy_ticks: int = 3
     # Comma-separated model display name(s) (e.g. "Fable" or "Fable,Opus"),

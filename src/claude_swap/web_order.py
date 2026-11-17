@@ -77,11 +77,13 @@ def _tool_score(account):
     max_pct = max(p for p, _ in scored)
     binding = [reset for pct, reset in scored if pct == max_pct and reset is not None]
     if max_pct < 100:
-        return 0, max((p for p, _ in scored), default=0), min(binding, default=float("inf")), str(account.get("alias", ""))
+        # The longest window's reset is when unused quota is lost: spend it first.
+        resets = [reset for _, reset in scored if reset is not None]
+        return 0, max(resets, default=float("inf")), max_pct, str(account.get("alias", ""))
     return 1, min(binding, default=float("inf")), 0, str(account.get("alias", ""))
 
 
-def order_accounts(tool, accounts, *, strategy="best", models=(), account_windows=("5h", "7d")):
+def order_accounts(tool, accounts, *, strategy="consume-first", models=(), account_windows=("5h", "7d")):
     """Return ranked account copies. Unknown data and Claude sentinels sort last."""
     key = (lambda a: _claude_score(a, models, account_windows, strategy)) if tool == "claude" else _tool_score
     ordered = sorted(accounts, key=key)

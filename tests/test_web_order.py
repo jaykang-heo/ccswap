@@ -40,3 +40,15 @@ def test_other_tool_accounts_rank_by_headroom_and_binding_reset_then_unknown():
     assert [row["alias"] for row in order_accounts("codex", rows)] == [
         "first", "later", "spent", "unknown"
     ]
+
+
+def test_other_tool_accounts_put_the_quota_that_expires_first_on_top():
+    rows = [
+        {"alias": "roomy", "usage": {"state": "available", "windows": [
+            {"usedPercent": 10, "resetsAt": 900},
+        ]}},
+        {"alias": "expiring", "usage": {"state": "available", "windows": [
+            {"usedPercent": 80, "resetsAt": 100},
+        ]}},
+    ]
+    assert [row["alias"] for row in order_accounts("muse", rows)] == ["expiring", "roomy"]

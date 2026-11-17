@@ -20,8 +20,10 @@ class FakeService:
         self.switched.append((tool, alias))
 
 
-def login(number, monthly, *, active=False):
-    return LoginQuota(number, f"k{number}", f"k{number}@example.com", active, {"7d": float(monthly)})
+def login(number, monthly, *, active=False, reset=None):
+    return LoginQuota(
+        number, f"k{number}", f"k{number}@example.com", active, {"7d": float(monthly)}, long_reset=reset
+    )
 
 
 def run(tmp_path, quotas, **settings):
@@ -42,7 +44,7 @@ def test_spent_monthly_credits_move_to_the_login_with_room(tmp_path):
 
 
 def test_rebalance_keeps_the_roomiest_kiro_login_active(tmp_path):
-    outcome, service, _ = run(tmp_path, [login(1, 60, active=True), login(2, 10)], rebalance_pct=20)
+    outcome, service, _ = run(tmp_path, [login(1, 60, active=True), login(2, 10)], rebalance_pct=20, strategy="best")
     assert outcome is TickOutcome.SWITCHED and service.switched == [("kiro", "k2")]
 
 
@@ -57,3 +59,16 @@ def test_the_monthly_credit_window_reads_as_the_long_gate():
         windows=(UsageWindow(key="monthly-credits", label="Plan credits", unit="credits", used_percent=40.0),),
     )
     assert _used(result) == {"7d": 40.0}
+
+
+def test_default_spends_the_login_whose_monthly_credits_reset_soonest(tmp_path):
+    quotas = [login(1, 10, active=True, reset=9_000.0), login(2, 70, reset=2_000.0), login(3, 0, reset=5_000.0)]
+    outcome, service, events = run(tmp_path, quotas)
+    assert outcome is TickOutcome.SWITCHED and service.switched == [("kiro", "k2")]
+    assert next(e for e in events if e.kind == "switch").trigger == "consume-first"
+
+
+def test_default_stays_on_the_login_that_already_resets_soonest(tmp_path):
+    quotas = [login(1, 70, active=True, reset=2_000.0), login(2, 0, reset=9_000.0)]
+    outcome, service, _ = run(tmp_path, quotas)
+    assert outcome is TickOutcome.NO_ACTION and service.switched == []

@@ -416,7 +416,7 @@ def test_rebalance_moves_below_threshold_to_an_account_with_more_room(tmp_path, 
     switcher = FakeCodexSwitcher(tmp_path, (_account("1", 60, active=True), _account("2", 10)))
     events = []
     engine = CodexAutoSwitchEngine(
-        switcher, AutoSwitchSettings(rebalance_pct=20), events.append, clock=lambda: 1_000
+        switcher, AutoSwitchSettings(rebalance_pct=20, strategy="best"), events.append, clock=lambda: 1_000
     )
     assert engine.tick() is TickOutcome.SWITCHED
     assert switcher.switched_to == ["2"]
@@ -427,7 +427,7 @@ def test_rebalance_stays_when_no_account_beats_the_margin(tmp_path):
     switcher = FakeCodexSwitcher(tmp_path, (_account("1", 30, active=True), _account("2", 15)))
     events = []
     engine = CodexAutoSwitchEngine(
-        switcher, AutoSwitchSettings(rebalance_pct=20), events.append, clock=lambda: 1_000
+        switcher, AutoSwitchSettings(rebalance_pct=20, strategy="best"), events.append, clock=lambda: 1_000
     )
     assert engine.tick() is TickOutcome.NO_ACTION
     assert switcher.switched_to == []

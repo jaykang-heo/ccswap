@@ -96,7 +96,7 @@ class Snapshot:
         rebalance = 0.0
         if isinstance(claude, dict) and isinstance(claude.get("accounts"), list):
             claude = dict(claude)
-            strategy = claude.pop("_webOrderStrategy", "best")
+            strategy = claude.pop("_webOrderStrategy", "consume-first")
             models = claude.pop("_webModels", ())
             windows = claude.pop("_webAccountWindows", ("5h", "7d"))
             rebalance = claude.pop("_webRebalancePct", 0.0)

@@ -103,6 +103,8 @@ class EngineHarness:
             self.switcher.platform = Platform.LINUX
             self.switcher._setup_directories()
             self.switcher._init_sequence_file()
+        # Existing cases pin `best`; consume-first, the default, has its own tests.
+        settings_kwargs.setdefault("strategy", "best")
         self.settings = AutoSwitchSettings(**settings_kwargs)
         self.events: list = []
         self.clock = FakeClock()
@@ -3275,7 +3277,7 @@ class TestConsumeFirstStrategy:
     def test_best_strategy_unaffected_below_threshold(self, temp_home):
         # Regression: default (best) still holds below threshold even when a
         # peer resets sooner — consume-first behavior must be opt-in.
-        h = EngineHarness(temp_home)  # strategy defaults to "best"
+        h = EngineHarness(temp_home)  # harness pins "best"
         h.seed(1, "a@example.com")
         h.seed(2, "b@example.com")
         h.make_live("a@example.com", 1)
