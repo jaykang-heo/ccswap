@@ -12,6 +12,7 @@ from claude_swap.vendors.muse_autoswitch import (
     MuseAutoSwitchEngine,
     _used,
     roomiest,
+    spend_order,
 )
 
 
@@ -167,7 +168,7 @@ def test_a_lane_runs_on_the_key_of_the_login_with_most_room(monkeypatch):
 
 def test_rebalance_moves_below_every_gate_to_the_roomiest_login(tmp_path):
     quotas = [login(1, 50, 60, active=True), login(2, 0, 10), login(3, 0, 30)]
-    eng, service, events = engine(tmp_path, quotas, rebalance_pct=20)
+    eng, service, events = engine(tmp_path, quotas, rebalance_pct=20, strategy="best")
     assert eng.tick() is TickOutcome.SWITCHED
     assert service.switched == ["a2"]
     assert next(e for e in events if e.kind == "switch").trigger == "rebalance"
@@ -175,6 +176,30 @@ def test_rebalance_moves_below_every_gate_to_the_roomiest_login(tmp_path):
 
 def test_rebalance_stays_when_the_gain_is_under_the_margin(tmp_path):
     quotas = [login(1, 20, 30, active=True), login(2, 0, 15)]
-    eng, service, events = engine(tmp_path, quotas, rebalance_pct=20)
+    eng, service, events = engine(tmp_path, quotas, rebalance_pct=20, strategy="best")
     assert eng.tick() is TickOutcome.NO_ACTION
     assert service.switched == [] and reasons(events) == ["below-threshold"]
+
+
+def test_default_spends_the_login_whose_weekly_window_resets_soonest(tmp_path):
+    quotas = [
+        login(1, 10, 20, active=True, long_reset=9_000.0),
+        login(2, 0, 80, long_reset=2_000.0),
+        login(3, 0, 0, long_reset=5_000.0),
+    ]
+    eng, service, events = engine(tmp_path, quotas)
+    assert eng.tick() is TickOutcome.SWITCHED
+    assert service.switched == ["a2"]
+    assert next(e for e in events if e.kind == "switch").trigger == "consume-first"
+
+
+def test_spend_order_puts_the_soonest_reset_first_and_unknown_resets_last():
+    gates = gate_thresholds(AutoSwitchSettings())
+    quotas = [
+        login(1, 0, 10, long_reset=None),
+        login(2, 0, 90, long_reset=3_000.0),
+        login(3, 0, 50, long_reset=1_000.0),
+        login(4, 0, 100, long_reset=500.0),
+    ]
+    order = spend_order(quotas, gates, "consume-first")
+    assert [q.alias for q in order] == ["a3", "a2", "a1"]

@@ -44,7 +44,7 @@ from claude_swap.exceptions import (
 from claude_swap.json_output import USAGE_API_KEY
 from claude_swap.locking import FileLock
 from claude_swap.models import AccountSnapshot, AccountsSnapshot
-from claude_swap.oauth import account_headroom, format_reset
+from claude_swap.oauth import account_headroom, format_reset, relevant_windows
 from claude_swap.paths import get_backup_root
 from claude_swap.poll_policy import parse_reset_ts
 from claude_swap.reset_credit_display import reset_credit_display
@@ -136,6 +136,22 @@ def codex_org_label(plan_type: str | None) -> str:
     }
     return known.get(plan_type.lower(), f"Codex {plan_type.replace('_', ' ').title()}")
 
+
+
+def _spend_key(account: AccountSnapshot, now: float) -> tuple:
+    """Display order: the weekly quota that expires first leads, spent and unread trail."""
+    from claude_swap.codex_autoswitch import _weekly_reset
+
+    usage = account.usage.last_good
+    pcts = [pct for _label, pct, _reset in relevant_windows(usage)] if isinstance(usage, dict) else []
+    if account.disabled:
+        return (3, 0.0, 0.0)
+    if not pcts:
+        return (2, 0.0, 0.0)
+    if max(pcts) >= 100.0:
+        return (1, 0.0, 0.0)
+    reset = _weekly_reset(usage, now)
+    return (0, reset if reset is not None else float("inf"), max(pcts))
 
 class CodexAccountSwitcher:
     """Manage multiple file-backed Codex authentication documents."""
@@ -1532,7 +1548,9 @@ class CodexAccountSwitcher:
             )
             for number, account in sorted(data["accounts"].items(), key=lambda item: int(item[0]))
         )
-        return AccountsSnapshot(active_number=active, accounts=accounts, taken_at=time.time())
+        now = time.time()
+        accounts = tuple(sorted(accounts, key=lambda a: _spend_key(a, now)))
+        return AccountsSnapshot(active_number=active, accounts=accounts, taken_at=now)
 
     def _usage_entry(
         self,

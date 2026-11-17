@@ -104,7 +104,9 @@ def test_disabled_account_is_skipped_by_rotation_but_stays_explicit_target(switc
 
     instance.set_account_disabled("2", True)
     assert instance.is_account_disabled("2")
-    assert instance.accounts_snapshot(fetch=set()).accounts[1].disabled
+    snapshot = instance.accounts_snapshot(fetch=set()).accounts
+    assert next(a for a in snapshot if a.number == "2").disabled
+    assert snapshot[-1].number == "2"  # disabled accounts list last
 
     assert instance.switch(json_output=True)["to"]["number"] == 3  # 2 skipped
     assert instance.switch_to("2", json_output=True)["switched"]  # still explicit

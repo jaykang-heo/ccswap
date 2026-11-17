@@ -165,8 +165,29 @@ class Overview:
                     summary.accounts.append((view, _unregistered_usage(view, summary.tool_usage)))
         except (ClaudeSwitchError, OSError) as exc:
             summary.error = _safe_error(exc)
+        summary.accounts.sort(key=spend_key)
         summary.refreshed_at = time.time()
         return summary
+
+
+def spend_key(item: tuple[AccountView, UsageResult]) -> tuple:
+    """Display order: the long-window quota that expires first leads.
+
+    Usable accounts sort by when their longest window resets (the quota that
+    would be lost first), then by least used; spent, unread and unregistered
+    accounts trail.
+    """
+    view, usage = item
+    if not view.registered:
+        return (3, 0.0, 0.0)
+    windows = [w for w in usage.windows if w.used_percent is not None]
+    if not windows:
+        return (2, 0.0, 0.0)
+    top = max(w.used_percent for w in windows)
+    if top >= 100.0:
+        return (1, 0.0, 0.0)
+    resets = [w.resets_at for w in windows if w.resets_at]
+    return (0, max(resets) if resets else float("inf"), top)
 
 
 def summary_from_snapshot(

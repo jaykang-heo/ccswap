@@ -57,6 +57,7 @@ class LoginQuota:
     used: Mapping[str, float] | None  # gate label -> used percent
     restorable: bool = True  # ccswap holds a token it can write back
     key: str | None = None  # this login's subscription API key
+    long_reset: float | None = None  # epoch when the 7d-gated window resets
 
     def margin(self, gates: GateThresholds) -> float | None:
         """Room below the nearest gate, in percent points; zero or less means a gate is reached."""
@@ -89,6 +90,14 @@ def _used(result: UsageResult) -> dict[str, float] | None:
     return used or None
 
 
+def long_reset(result: UsageResult, labels: Mapping[str, str]) -> float | None:
+    """When the window gated as ``7d`` resets; None when no reading says."""
+    return next(
+        (w.resets_at for w in result.windows if labels.get(w.key) == "7d" and w.resets_at),
+        None,
+    )
+
+
 def login_quotas(service: VendorService) -> list[LoginQuota]:
     """Every registered browser login with its own usage, in menu order."""
     if not any(record.kind == "browser" for record in service.store.records(TOOL)):
@@ -99,9 +108,10 @@ def login_quotas(service: VendorService) -> list[LoginQuota]:
         if not view.registered or view.kind != "browser":
             continue
         try:
-            used = _used(service.usage(TOOL, view.alias))
+            result = service.usage(TOOL, view.alias)
+            used, reset = _used(result), long_reset(result, _GATE_LABELS)
         except ClaudeSwitchError:
-            used = None
+            used, reset = None, None
         secret = secrets.get(view.alias) or ""
         key = (_meta(secret) or {}).get("api_key")
         quotas.append(
@@ -113,6 +123,7 @@ def login_quotas(service: VendorService) -> list[LoginQuota]:
                 used=used,
                 restorable=_login_restorable(secret),
                 key=key if isinstance(key, str) and key.strip() else None,
+                long_reset=reset,
             )
         )
     return quotas
@@ -124,9 +135,21 @@ def roomiest(quotas: Sequence[LoginQuota], gates: GateThresholds) -> list[LoginQ
     return sorted(usable, key=lambda q: q.margin(gates), reverse=True)
 
 
+def spend_order(quotas: Sequence[LoginQuota], gates: GateThresholds, strategy: str) -> list[LoginQuota]:
+    """Logins with quota in the order to spend them.
+
+    consume-first: the long window that resets soonest first, so quota that
+    would expire unused goes first; ties and unknown resets fall back to room.
+    """
+    usable = roomiest(quotas, gates)
+    if strategy != "consume-first":
+        return usable
+    return sorted(usable, key=lambda q: q.long_reset if q.long_reset is not None else float("inf"))
+
+
 def lane_key(service: VendorService, settings: AutoSwitchSettings) -> tuple[LoginQuota, str] | None:
     """The login a new lane should bill, with its subscription key; None when none is usable."""
-    for quota in roomiest(login_quotas(service), gate_thresholds(settings)):
+    for quota in spend_order(login_quotas(service), gate_thresholds(settings), settings.strategy):
         if quota.key:
             return quota, quota.key
     return None
@@ -212,9 +235,26 @@ class MuseAutoSwitchEngine:
             return self._no(
                 "active-usage-unknown", "will not switch without a reading of the active login"
             )
+        consume_first = self.settings.strategy == "consume-first"
         if margin > 0:
             label, pct = min(active.used.items(), key=lambda w: gates.for_label(w[0]) - w[1])
             below = f"{label} {pct:.0f}% < {gates.for_label(label):.0f}%"
+            if consume_first:
+                # Burn the soonest-expiring long-window quota first. Only a strictly
+                # sooner reset moves, so two logins cannot ping-pong.
+                sooner = [
+                    q
+                    for q in spend_order([q for q in quotas if not q.active and q.restorable], gates, "consume-first")
+                    if (q.margin(gates) or 0) > 0
+                    and active.long_reset is not None
+                    and q.long_reset is not None
+                    and q.long_reset < active.long_reset
+                ]
+                if not sooner:
+                    return self._no("below-threshold", below)
+                if self._in_cooldown():
+                    return self._no("cooldown")
+                return self._perform(active, sooner[0], "consume-first")
             rebalance = self.settings.rebalance_pct
             roomier = [
                 q
@@ -236,7 +276,7 @@ class MuseAutoSwitchEngine:
             return self._no("no-candidates", outcome=TickOutcome.BLOCKED)
         qualifying = [
             q
-            for q in roomiest(others, gates)
+            for q in spend_order(others, gates, self.settings.strategy)
             # A proactive move must land clear of the gate, or two logins near it ping-pong.
             if trigger == "at-limit" or q.margin(gates) >= self.settings.hysteresis_pct
         ]

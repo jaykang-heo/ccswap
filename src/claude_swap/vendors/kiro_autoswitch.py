@@ -2,14 +2,15 @@
 
 Kiro reports one monthly plan-credit window per login. The engine treats it as
 the long gate (``7d`` thresholds apply), so the same threshold, hysteresis,
-cooldown and ``rebalancePct`` rules keep the roomiest Kiro login active.
+cooldown and strategy rules apply: consume-first spends the login whose
+monthly window resets soonest first.
 """
 
 from __future__ import annotations
 
 from claude_swap.exceptions import ClaudeSwitchError
 from claude_swap.vendors.core import UsageResult, UsageState
-from claude_swap.vendors.muse_autoswitch import LoginQuota, MuseAutoSwitchEngine
+from claude_swap.vendors.muse_autoswitch import LoginQuota, MuseAutoSwitchEngine, long_reset
 from claude_swap.vendors.service import VendorService
 
 TOOL = "kiro"
@@ -34,9 +35,10 @@ def login_quotas(service: VendorService) -> list[LoginQuota]:
         if not view.registered or view.kind != "login":
             continue
         try:
-            used = _used(service.usage(TOOL, view.alias))
+            result = service.usage(TOOL, view.alias)
+            used, reset = _used(result), long_reset(result, _GATE_LABELS)
         except ClaudeSwitchError:
-            used = None
+            used, reset = None, None
         quotas.append(
             LoginQuota(
                 number=len(quotas) + 1,
@@ -44,6 +46,7 @@ def login_quotas(service: VendorService) -> list[LoginQuota]:
                 email=view.identity.get("email", ""),
                 active=view.active is True,
                 used=used,
+                long_reset=reset,
             )
         )
     return quotas
