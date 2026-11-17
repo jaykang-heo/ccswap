@@ -159,3 +159,25 @@ def test_spend_without_amounts_shows_percentage():
 
     line = _spend_line({"used_percentage": 40, "resets_at": None}, None, DARK)
     assert line is not None and "40%" in line
+
+
+def test_next_is_the_account_auto_switch_spends_next_not_the_least_used(backup):
+    seq = json.loads((backup / "sequence.json").read_text())
+    seq["sequence"] = [1, 2, 3]
+    seq["activeAccountNumber"] = 3
+    seq["accounts"]["3"] = {"email": "c@x.io", "organizationUuid": "o"}
+    (backup / "sequence.json").write_text(json.dumps(seq))
+
+    def row(email, seven, reset_in_h):
+        reset = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(NOW + reset_in_h * 3600))
+        return {"email": email, "organizationUuid": "o", "fetchedAt": NOW, "lastGood": {
+            "five_hour": {"pct": 10, "resets_at": reset},
+            "seven_day": {"pct": seven, "resets_at": reset},
+        }}
+    (backup / "cache" / "usage.json").write_text(json.dumps({"schemaVersion": 2, "accounts": {
+        "1": row("a@x.io", 5, 150),   # least used, resets last
+        "2": row("b@x.io", 70, 10),   # resets in 10h with 30% left: spend this next
+        "3": row("c@x.io", 50, 80),
+    }}))
+    text = plain(statusline.render(SAMPLE, backup_root=backup))
+    assert "next: #2" in text
