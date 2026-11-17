@@ -16,6 +16,7 @@ from claude_swap.fsutil import atomic_write_text
 from claude_swap.usage_store import UsageEntry
 
 if TYPE_CHECKING:
+    from claude_swap.spend import Spend
     from claude_swap.switcher import ClaudeAccountSwitcher
 
 
@@ -141,6 +142,7 @@ class AccountSnapshot:
     usage: UsageEntry
     alias: str = ""
     disabled: bool = False  # held out of auto-rotation (still a valid explicit target)
+    spend: Spend | None = None  # the shared spend plan (claude_swap.spend); None for other providers
 
     @property
     def display_tag(self) -> str:
