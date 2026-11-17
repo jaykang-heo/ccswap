@@ -66,3 +66,13 @@ def test_near_starts_ten_points_below_the_configured_switch_gate():
     plan = _plan(rows)
     assert plan[1].tones["5h"] == "near"
     assert plan[2].tones["5h"] == "plain"
+
+
+def test_a_spent_model_window_blocks_only_when_the_engine_watches_that_model():
+    row = _row(1, 10, 2.0, 40, 30)
+    row["usage"]["scoped"] = [{"name": "Fable", "pct": 100, "resetsAt": _iso(NOW + 30 * H)}]
+    s = AutoSwitchSettings(threshold=98.0)
+    unwatched = spend_plan([row], strategy=s.strategy, gates=gate_thresholds(s), now=NOW)
+    watched = spend_plan([row], strategy=s.strategy, gates=gate_thresholds(s), now=NOW, models=("Fable",))
+    assert unwatched[1].state == "use_now" and unwatched[1].tones["Fable"] == "limit"
+    assert watched[1].state == "blocked"
