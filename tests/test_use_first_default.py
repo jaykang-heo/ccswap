@@ -87,3 +87,21 @@ def test_default_wastes_far_less_weekly_quota_than_best(tmp_path, strategy):
         ):
             results[name] = _wasted_weekly_quota(home, name)
     assert results[DEFAULT] * 2 < results[strategy], results
+
+
+def test_every_view_lists_accounts_in_the_order_auto_switch_spends_them(temp_home):
+    from tests.test_autoswitch import _entry_for
+
+    h = _harness(temp_home, "2", strategy=DEFAULT)
+    now = h.clock.now
+    usage = {n: _usage(0.0, None, p7, now + hrs * H) for n, (p7, hrs) in FLEET.items()}
+    entries = {n: _entry_for(v, now) for n, v in usage.items()}
+    with patch.object(h.switcher, "_collect_usage_entries", return_value=entries):
+        snapshot = [a.number for a in h.switcher.accounts_snapshot().accounts]
+        listed = [a["number"] for a in h.switcher.list_accounts(json_output=True)["accounts"]]
+    # Soonest weekly reset first: 4 (11.7h), 3 (60h), 1 (91h), 2 (125h).
+    assert snapshot == ["4", "3", "1", "2"]
+    assert listed == [4, 3, 1, 2]
+    h.tick_with_usage(usage)
+    sw = next(e for e in h.events if isinstance(e, SwitchEvent))
+    assert str(sw.to_ref["number"]) == snapshot[0], "the top row is not where auto-switch goes"
