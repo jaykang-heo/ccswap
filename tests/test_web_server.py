@@ -521,3 +521,72 @@ def test_a_missing_or_broken_tools_cache_is_ignored(tmp_path):
     assert not web_server.Snapshot(lambda: None, tools_cache=cache).load_tools_cache()
     cache.write_text("not json")
     assert not web_server.Snapshot(lambda: None, tools_cache=cache).load_tools_cache()
+
+
+def test_a_timed_out_tool_keeps_its_last_accounts():
+    """A tool that misses the overview deadline comes back as an empty
+    'timed out' summary; replacing the last good one hid Kiro and Muse from
+    the page (2026-11-17)."""
+    snapshot = web_server.Snapshot(lambda: None)
+    good = {"tool": "kiro", "installed": True, "error": None,
+            "refreshedAt": 1_000.0, "accounts": [{"alias": "a"}, {"alias": "b"}]}
+    snapshot.set_tools([good, {"tool": "muse", "accounts": [{"alias": "m"}]}])
+    snapshot.set_tools([
+        {"tool": "kiro", "installed": False, "error": "timed out",
+         "refreshedAt": None, "accounts": []},
+        {"tool": "muse", "accounts": [{"alias": "m"}, {"alias": "n"}]},
+    ])
+    tools = {t["tool"]: t for t in snapshot.document()["tools"]}
+    assert [a["alias"] for a in tools["kiro"]["accounts"]] == ["a", "b"]
+    assert tools["kiro"]["refreshedAt"] == 1_000.0
+    assert tools["kiro"]["error"] == "timed out"
+    assert tools["kiro"]["installed"] is True
+    assert len(tools["muse"]["accounts"]) == 2
+
+
+def test_a_tool_that_is_really_gone_is_replaced():
+    snapshot = web_server.Snapshot(lambda: None)
+    snapshot.set_tools([{"tool": "kiro", "accounts": [{"alias": "a"}]}])
+    snapshot.set_tools([{"tool": "kiro", "installed": False, "error": None, "accounts": []}])
+    assert snapshot.document()["tools"][0]["accounts"] == []
+
+
+def _page_models(rows, tool="claude"):
+    """Run the page's own model code in node and return its account models."""
+    import shutil
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    html = (Path(web_server.__file__).parent / "web_assets" / "index.html").read_text()
+    script = html.split("<script>", 1)[1].rsplit("</script>", 1)[0]
+    script = script.replace(
+        "load();setInterval(load,POLL_MS);",
+        "globalThis.__models=toolModels;return;",
+    )
+    snap = {"claude": {"accounts": rows}} if tool == "claude" else {"tools": [{"tool": tool, "accounts": rows}]}
+    program = (
+        "globalThis.document={addEventListener(){}};" + script
+        + ";process.stdout.write(JSON.stringify(globalThis.__models("
+        + json.dumps(snap) + ")[0].accounts.map(a=>({stale:a.stale,age:a.age}))))"
+    )
+    out = subprocess.run([node, "-e", program], capture_output=True, text=True, check=True)
+    return json.loads(out.stdout)
+
+
+def _claude_row(**extra):
+    usage = {"fiveHour": {"pct": 44, "resetsAt": "2026-11-17T09:00:00Z"},
+             "sevenDay": {"pct": 69, "resetsAt": "2026-11-22T09:00:00Z"}}
+    row = {"email": "leo@example.com", "active": False, "usage": None, "lastGoodUsage": usage}
+    row.update(extra)
+    return row
+
+
+def test_a_row_served_from_recent_last_good_usage_is_not_stale():
+    [model] = _page_models([_claude_row(usageStatus="keychain_unavailable", lastGoodAgeSeconds=100.0)])
+    assert model == {"stale": False, "age": 100.0}
+
+
+def test_a_row_whose_last_good_usage_is_old_is_stale_with_its_age():
+    [model] = _page_models([_claude_row(usageStatus="keychain_unavailable", lastGoodAgeSeconds=1000.0)])
+    assert model == {"stale": True, "age": 1000.0}
