@@ -94,3 +94,41 @@ def test_the_tui_card_says_use_now_and_how_much_is_lost_at_reset():
     text = account_card_text(acc, 100, now=NOW).plain
     assert "USE NOW" in text
     assert "22% lost at reset in 11h" in text
+
+
+# Adversarial findings (interrogate, 2026-11-17): the plan must match where the engine can land.
+
+def test_an_account_past_its_switch_gate_is_never_use_now():
+    # 95% weekly resets sooner, but the engine never lands above the gate (98 here).
+    rows = [_row(1, 10, 4.0, 20, 100, active=True), _row(2, 0, None, 99, 10)]
+    plan = _plan(rows)
+    assert plan[2].state == "blocked"
+    assert plan[1].state == "use_now"
+
+
+def test_an_unknown_active_weekly_reset_keeps_the_active_account_first():
+    active = _row(1, 10, 4.0, 20, 100, active=True)
+    del active["usage"]["sevenDay"]["resetsAt"]
+    plan = _plan([active, _row(2, 0, None, 30, 10)])
+    assert plan[1].state == "use_now"
+    assert plan[2].state == "next"
+
+
+def test_when_nothing_can_be_landed_on_nothing_is_use_now():
+    rows = [_row(1, 100, 1.0, 50, 100), _row(2, 99, 3.0, 40, 90)]
+    plan = _plan(rows)
+    assert {plan[1].state, plan[2].state} == {"blocked"}
+    assert plan[1].blocked_until == NOW + 1.0 * H
+
+
+def test_a_blocked_account_still_reports_weekly_quota_lost_at_reset():
+    rows = [_row(1, 100, 2.0, 50, 2.0), _row(2, 10, 4.0, 40, 100)]
+    plan = _plan(rows)
+    assert plan[1].state == "blocked" and plan[1].waste_pct == 50
+
+
+def test_blocked_until_counts_every_window_that_keeps_it_unlandable():
+    # 5h back in 1h, but the weekly at 99% stays past the gate until its reset in 110h.
+    rows = [_row(1, 100, 1.0, 99, 110), _row(2, 10, 4.0, 40, 100)]
+    plan = _plan(rows)
+    assert plan[1].blocked_until == NOW + 110 * H

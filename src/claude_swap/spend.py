@@ -52,35 +52,55 @@ def spend_plan(
     models: tuple[str, ...] = (),
     windows: tuple[str, ...] = ("5h", "7d"),
 ) -> dict[int, Spend]:
-    """Spend for every ``list --json`` row, keyed by account number."""
+    """Spend for every ``list --json`` row, keyed by account number.
+
+    Mirrors where the engine can land: an account with any engine-gated window
+    at or past its switch gate is blocked until that window resets, and when
+    the active account's weekly reset is unknown the engine holds on it.
+    """
     from claude_swap.web_order import _claude_usage, order_accounts
 
     ordered = order_accounts("claude", rows, strategy=strategy, models=models, account_windows=windows)
-    plan: dict[int, Spend] = {}
-    usable_rank = 0
+    gating = {"5h", "7d"} | {m.lower() for m in models}
+    facts = []
     for row in ordered:
         usage = _claude_usage(row) or {}
-        tones = _tones(usage, gates)
         weekly = usage.get("seven_day") if isinstance(usage.get("seven_day"), dict) else {}
-        reset = _ts(weekly.get("resets_at"))
         pct = weekly.get("pct")
-        left = None if pct is None else max(0.0, 100.0 - float(pct))
-        gating = {"5h", "7d"} | {m.lower() for m in models}
-        blocked = [w for label, w in _windows(usage) if tones.get(label) == "limit" and label.lower() in gating]
-        if row.get("disabled") or row.get("usageStatus") == "relogin_required" or not usage:
-            plan[int(row["number"])] = Spend(None, "unknown", reset, left, tones=tones)
-            continue
-        if blocked:
-            until = max((_ts(w.get("resets_at")) or now for w in blocked), default=None)
-            plan[int(row["number"])] = Spend(None, "blocked", reset, left, blocked_until=until, tones=tones)
-            continue
-        usable_rank += 1
-        state: SpendState = "use_now" if usable_rank == 1 else "next" if usable_rank == 2 else "waiting"
+        over = [
+            w for label, w in _windows(usage)
+            if label.lower() in gating and w.get("pct") is not None
+            and float(w["pct"]) >= min(100.0, gates.for_label(label))
+        ]
+        facts.append((row, usage, _tones(usage, gates), _ts(weekly.get("resets_at")),
+                      None if pct is None else max(0.0, 100.0 - float(pct)), over))
+
+    def unknown(row, usage):
+        return bool(row.get("disabled") or row.get("usageStatus") == "relogin_required" or not usage)
+
+    usable = [f for f in facts if not unknown(f[0], f[1]) and not f[5]]
+    held = next((f for f in usable if f[0].get("active") and f[3] is None), None)
+    if held is not None:
+        usable.remove(held)
+        usable.insert(0, held)
+    rank = {id(f[0]): i for i, f in enumerate(usable, 1)}
+
+    plan: dict[int, Spend] = {}
+    for row, usage, tones, reset, left, over in facts:
+        number = int(row["number"])
         waste = None
         if reset is not None and left is not None and reset - now <= WASTE_WINDOW_S and left >= WASTE_MIN_PCT:
             waste = round(left)
-        plan[int(row["number"])] = Spend(usable_rank, state, reset, left, waste_pct=waste, tones=tones)
-    return plan
+        if unknown(row, usage):
+            plan[number] = Spend(None, "unknown", reset, left, tones=tones)
+        elif over:
+            until = max((_ts(w.get("resets_at")) or now for w in over), default=None)
+            plan[number] = Spend(None, "blocked", reset, left, waste_pct=waste, blocked_until=until, tones=tones)
+        else:
+            r = rank[id(row)]
+            state: SpendState = "use_now" if r == 1 else "next" if r == 2 else "waiting"
+            plan[number] = Spend(r, state, reset, left, waste_pct=waste, tones=tones)
+    return dict(sorted(plan.items(), key=lambda kv: (kv[1].rank is None, kv[1].rank or 0)))
 
 
 def _windows(usage: dict) -> list[tuple[str, dict]]:
