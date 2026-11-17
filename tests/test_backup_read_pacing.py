@@ -492,3 +492,56 @@ class TestStrikeBindingReadsFresh:
         assert row.usage.sentinel == USAGE_RELOGIN_REQUIRED
         assert cleared == []
         assert keychain.backup_calls(2) == 0
+
+
+class TestCooldownServesTheLastRead:
+    """A 5 s `security` timeout arms a 60 s cooldown. Every idle slot whose
+    cached read had just passed its TTL then went 'keychain unavailable', so
+    the dashboard showed fresh rows as STALE and autoswitch lost their
+    headroom (measured 2026-11-17: three of four slots flipping every pass)."""
+
+    def _age_entry(self, store, num: int, seconds: float) -> None:
+        key = (str(num), _email(num))
+        value, _ = store._backup_read_cache[key]
+        store._backup_read_cache[key] = (value, time.monotonic() - seconds)
+
+    def _arm_cooldown(self, store, keychain: _Keychain) -> None:
+        keychain.fail = lambda *_: True
+        with pytest.raises(KeychainError):
+            store._kc_read_backup("9", "nobody@example.com")
+        keychain.fail = None
+
+    def test_a_read_just_past_its_ttl_is_served_inside_the_cooldown(
+        self, temp_home: Path, block_real_keychain, keychain: _Keychain
+    ):
+        s = _switcher(temp_home, block_real_keychain, 2)
+        store = s._store
+        store._read_account_credentials("2", _email(2), cached=True)
+        self._age_entry(store, 2, 90)
+        self._arm_cooldown(store, keychain)
+        assert store._read_account_credentials_ex("2", _email(2), cached=True) == (
+            _cred("backup2"), False
+        )
+        assert keychain.backup_calls(2) == 1, "the cooldown must still not spawn"
+
+    def test_a_read_older_than_ttl_plus_cooldown_stays_unreadable(
+        self, temp_home: Path, block_real_keychain, keychain: _Keychain
+    ):
+        s = _switcher(temp_home, block_real_keychain, 2)
+        store = s._store
+        store._read_account_credentials("2", _email(2), cached=True)
+        self._age_entry(store, 2, 130)
+        self._arm_cooldown(store, keychain)
+        assert store._read_account_credentials_ex("2", _email(2), cached=True) == (
+            "", True
+        )
+
+    def test_a_fresh_read_inside_the_cooldown_still_refuses(
+        self, temp_home: Path, block_real_keychain, keychain: _Keychain
+    ):
+        s = _switcher(temp_home, block_real_keychain, 2)
+        store = s._store
+        store._read_account_credentials("2", _email(2), cached=True)
+        self._arm_cooldown(store, keychain)
+        with pytest.raises(KeychainError):
+            store._kc_read_backup("2", _email(2))

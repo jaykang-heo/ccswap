@@ -53,6 +53,24 @@ def _iso_utc(epoch_s: float) -> str:
     )
 
 
+def _keep_last_good(tool: dict, previous: dict | None) -> dict:
+    """A tool whose collection failed with no accounts keeps its last accounts.
+
+    The overview turns a tool that misses its deadline into an empty "timed out"
+    summary; replacing the last good one hid Kiro and Muse from the page under
+    load (2026-11-17). ``refreshedAt`` stays the old one so the page can age it.
+    """
+    if (
+        isinstance(tool, dict)
+        and tool.get("error")
+        and not tool.get("accounts")
+        and previous
+        and previous.get("accounts")
+    ):
+        return {**previous, "error": tool["error"]}
+    return tool
+
+
 class Snapshot:
     """The latest Claude payload and when it was produced. Safe across threads."""
 
@@ -124,6 +142,8 @@ class Snapshot:
 
     def set_tools(self, tools: list[dict], generated_at: float | None = None) -> None:
         with self._lock:
+            previous = {t.get("tool"): t for t in self._tools if isinstance(t, dict)}
+            tools = [_keep_last_good(t, previous.get(t.get("tool"))) for t in tools]
             self._tools = tools
             self._tools_generated_at = generated_at if generated_at is not None else time.time()
         if self._tools_cache is not None:
