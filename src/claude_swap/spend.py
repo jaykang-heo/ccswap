@@ -58,25 +58,30 @@ def spend_plan(
     at or past its switch gate is blocked until that window resets, and when
     the active account's weekly reset is unknown the engine holds on it.
     """
+    from claude_swap.oauth import account_headroom
     from claude_swap.web_order import _claude_usage, order_accounts
 
     ordered = order_accounts("claude", rows, strategy=strategy, models=models, account_windows=windows)
-    gating = {"5h", "7d"} | {m.lower() for m in models}
+    gating = {w.lower() for w in windows} | {m.lower() for m in models}
     facts = []
     for row in ordered:
         usage = _claude_usage(row) or {}
         weekly = usage.get("seven_day") if isinstance(usage.get("seven_day"), dict) else {}
-        pct = weekly.get("pct")
+        pct = _pct(weekly)
         over = [
             w for label, w in _windows(usage)
-            if label.lower() in gating and w.get("pct") is not None
-            and float(w["pct"]) >= min(100.0, gates.for_label(label))
+            if label.lower() in gating and _pct(w) is not None
+            and _pct(w) >= min(100.0, gates.for_label(label))
         ]
-        facts.append((row, usage, _tones(usage, gates, gating), _ts(weekly.get("resets_at")),
-                      None if pct is None else max(0.0, 100.0 - float(pct)), over))
+        facts.append((row, usage, _tones(usage, gates, gating), _future(weekly.get("resets_at"), now),
+                      None if pct is None else max(0.0, 100.0 - pct), over))
 
     def unknown(row, usage):
-        return bool(row.get("disabled") or row.get("usageStatus") == "relogin_required" or not usage)
+        # The engine skips an account whose relevant windows carry no numbers.
+        return bool(
+            row.get("disabled") or row.get("usageStatus") == "relogin_required" or not usage
+            or account_headroom(usage, models, windows) is None
+        )
 
     usable = [f for f in facts if not unknown(f[0], f[1]) and not f[5]]
     held = next((f for f in usable if f[0].get("active") and f[3] is None), None)
@@ -94,7 +99,7 @@ def spend_plan(
         if unknown(row, usage):
             plan[number] = Spend(None, "unknown", reset, left, tones=tones)
         elif over:
-            until = max((_ts(w.get("resets_at")) or now for w in over), default=None)
+            until = max((_future(w.get("resets_at"), now) or now for w in over), default=None)
             plan[number] = Spend(None, "blocked", reset, left, waste_pct=waste, blocked_until=until, tones=tones)
         else:
             r = rank[id(row)]
@@ -117,10 +122,9 @@ def _windows(usage: dict) -> list[tuple[str, dict]]:
 def _tones(usage: dict, gates: GateThresholds, gating: set[str]) -> dict[str, Tone]:
     tones: dict[str, Tone] = {}
     for label, w in _windows(usage):
-        pct = w.get("pct")
+        pct = _pct(w)
         if pct is None:
             continue
-        pct = float(pct)
         gate = gates.for_label(label)
         if pct >= 100.0 or (label.lower() in gating and pct >= gate):
             tones[label] = "limit"
@@ -129,6 +133,19 @@ def _tones(usage: dict, gates: GateThresholds, gating: set[str]) -> dict[str, To
         else:
             tones[label] = "plain"
     return tones
+
+
+def _pct(window: dict) -> float | None:
+    value = window.get("pct")
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    return None
+
+
+def _future(value, now: float) -> float | None:
+    """A reset time still ahead of ``now``; a past one is unknown, as the engine reads it."""
+    ts = _ts(value)
+    return ts if ts is not None and ts > now else None
 
 
 def _ts(value) -> float | None:

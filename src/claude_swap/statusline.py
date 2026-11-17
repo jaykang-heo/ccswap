@@ -24,7 +24,13 @@ from datetime import datetime
 from pathlib import Path
 
 from claude_swap import live_rate_limits, paths
-from claude_swap.settings import gate_thresholds, load_settings, load_ui_settings
+from claude_swap.settings import (
+    effective_model_names,
+    gate_thresholds,
+    load_settings,
+    load_ui_settings,
+    parse_window_selection,
+)
 from claude_swap.spend import spend_plan
 from claude_swap.tui.data import present_alias, present_email
 from claude_swap.usage_store import UsageStore
@@ -179,9 +185,18 @@ def _accounts(backup_root: Path, mask: bool = False) -> tuple[_Account | None, _
         usage = entries[num].last_good
         alias = present_alias(rec.get("alias") or "", mask=mask)
         accounts[num] = _Account(num, alias or present_email(rec.get("email") or "", mask=mask), usage)
-        rows.append({"number": int(num), "usageStatus": "ok", "usage": usage, "disabled": bool(rec.get("disabled"))})
+        rows.append({
+            "number": int(num),
+            "usageStatus": "relogin_required" if entries[num].sentinel else "ok",
+            "usage": usage,
+            "disabled": bool(rec.get("disabled")),
+            "active": num == active_num,
+        })
     settings = load_settings(backup_root)
-    plan = spend_plan(rows, strategy=settings.strategy, gates=gate_thresholds(settings), now=time.time())
+    plan = spend_plan(
+        rows, strategy=settings.strategy, gates=gate_thresholds(settings), now=time.time(),
+        models=effective_model_names(settings), windows=parse_window_selection(settings.windows),
+    )
     # "next" is the account auto-switch spends after the active one, not the least-used one.
     nxt = next((str(n) for n, s in plan.items() if s.rank is not None and str(n) != active_num), None)
     return accounts.get(active_num), accounts.get(nxt) if nxt else None

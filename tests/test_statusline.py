@@ -181,3 +181,27 @@ def test_next_is_the_account_auto_switch_spends_next_not_the_least_used(backup):
     }}))
     text = plain(statusline.render(SAMPLE, backup_root=backup))
     assert "next: #2" in text
+
+
+def test_next_skips_an_account_blocked_on_a_model_the_engine_watches(backup):
+    (backup / "settings.json").write_text(json.dumps({"autoswitch": {"model": "Fable"}}))
+    seq = json.loads((backup / "sequence.json").read_text())
+    seq["sequence"] = [1, 2, 3]
+    seq["activeAccountNumber"] = 3
+    seq["accounts"]["3"] = {"email": "c@x.io", "organizationUuid": "o"}
+    (backup / "sequence.json").write_text(json.dumps(seq))
+
+    def row(email, seven, reset_in_h, fable):
+        reset = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(NOW + reset_in_h * 3600))
+        return {"email": email, "organizationUuid": "o", "fetchedAt": NOW, "lastGood": {
+            "five_hour": {"pct": 10, "resets_at": reset},
+            "seven_day": {"pct": seven, "resets_at": reset},
+            "scoped": [{"name": "Fable", "pct": fable, "resets_at": reset}],
+        }}
+    (backup / "cache" / "usage.json").write_text(json.dumps({"schemaVersion": 2, "accounts": {
+        "1": row("a@x.io", 20, 10, 100),  # soonest, but its watched model is spent
+        "2": row("b@x.io", 30, 40, 0),
+        "3": row("c@x.io", 50, 80, 0),
+    }}))
+    text = plain(statusline.render(SAMPLE, backup_root=backup))
+    assert "next: #2" in text
