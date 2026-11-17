@@ -17,7 +17,7 @@ _GATE_LABELS = {"monthly-credits": "7d"}
 
 
 def _used(result: UsageResult) -> dict[str, float] | None:
-    if result.state not in (UsageState.AVAILABLE, UsageState.STALE):
+    if result.state not in (UsageState.AVAILABLE, UsageState.STALE, UsageState.IDLE):
         return None
     used = {
         _GATE_LABELS[w.key]: w.used_percent

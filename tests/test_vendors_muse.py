@@ -106,7 +106,7 @@ def test_switch_warns_when_env_key_overrides(adapter, runner, monkeypatch):
     assert any("META_API_KEY" in w for w in outcome.warnings)
 
 
-def test_usage_null_allowance_is_unavailable_not_zero(adapter, runner):
+def test_usage_null_allowance_is_idle_not_zero(adapter, runner):
     runner.on(
         MUSE,
         "usage",
@@ -124,7 +124,7 @@ def test_usage_null_allowance_is_unavailable_not_zero(adapter, runner):
     )
     result = adapter.usage(None, None)
     assert (
-        result.state is UsageState.UNAVAILABLE
+        result.state is UsageState.IDLE
         and result.windows == ()
         and result.observations == ()
     )

@@ -56,7 +56,7 @@ class UsageCache:
         return result
 
     def put(self, tool: str, account: str, result: UsageResult) -> None:
-        if result.state is not UsageState.AVAILABLE or not result.has_data:
+        if result.state not in (UsageState.AVAILABLE, UsageState.IDLE) or not result.has_data:
             return
         self._update(
             lambda entries: entries.__setitem__(self._key(tool, account), result.to_json())

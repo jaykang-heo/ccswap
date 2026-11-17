@@ -78,7 +78,8 @@ class LoginQuota:
 
 def _used(result: UsageResult) -> dict[str, float] | None:
     # A stale reading is the login's last numbers with expired windows already rolled.
-    if result.state not in (UsageState.AVAILABLE, UsageState.STALE):
+    # An idle reading is current numbers for a new, unused period.
+    if result.state not in (UsageState.AVAILABLE, UsageState.STALE, UsageState.IDLE):
         return None
     used = {
         _GATE_LABELS[w.key]: w.used_percent

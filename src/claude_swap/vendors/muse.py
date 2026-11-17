@@ -830,12 +830,21 @@ class MuseAdapter(ToolAdapter):
         allowance = doc.get("allowance")
         if not isinstance(allowance, dict):
             reason = str(doc.get("reason") or "")
+            if reason == "server_sent_no_usage":
+                # Definite idle, not a failed refresh: the 5h window ended and no
+                # model call ran since, so there is no allowance to report yet.
+                return UsageResult(
+                    UsageState.IDLE,
+                    "The connected account returned no allowance data "
+                    "(idle: no model use in the new window yet)",
+                    hint=redact(str(doc.get("hint") or ""), secrets)[:240],
+                    source="muse usage --json",
+                    attributed_to=who,
+                )
             message = {
                 "api_key": "Muse does not report usage for an API-key sign-in. The Muse Code "
                 "subscription key and pay-as-you-go keys look the same here; "
                 "dev.meta.ai/api-keys says which one this is",
-                "server_sent_no_usage": "The connected account returned no allowance data "
-                "(this happens before the first use in a new window)",
             }.get(reason, redact(reason or "no allowance reported", secrets)[:120])
             return UsageResult(
                 UsageState.UNAVAILABLE,

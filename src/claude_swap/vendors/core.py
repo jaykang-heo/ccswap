@@ -184,6 +184,7 @@ class UsageState(str, enum.Enum):
     UNSUPPORTED = "unsupported"  # no stable programmatic interface exists
     UNAUTHENTICATED = "unauthenticated"  # the tool reports no usable login
     STALE = "stale"  # last good observation, kept because a refresh failed or is impossible now
+    IDLE = "idle"  # the vendor answered definitively: no window has started, nothing used
     ERROR = "error"  # the source exists but failed, and there is no earlier observation
 
 

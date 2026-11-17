@@ -294,7 +294,7 @@ def test_failed_refresh_rolls_only_expired_muse_window(tmp_path, monkeypatch):
 
     now[0] = five_hour_reset + 1
     after_reset = svc.usage("muse", "me", refresh=True)
-    assert after_reset.state is UsageState.STALE
+    assert after_reset.state is UsageState.IDLE
     five_hour, weekly = after_reset.windows
     assert (five_hour.used_percent, five_hour.remaining, five_hour.resets_at) == (
         0.0,
@@ -302,6 +302,51 @@ def test_failed_refresh_rolls_only_expired_muse_window(tmp_path, monkeypatch):
         None,
     )
     assert (weekly.used_percent, weekly.resets_at) == (43.0, weekly_reset)
+    assert "idle since" in (after_reset.hint or "")
+    assert after_reset.observed_at == now[0]
+    stored = svc.usage_store.get("muse", "me")
+    assert stored is not None and stored.state is UsageState.IDLE
+    assert stored.observed_at == now[0]
+
+
+def test_signed_in_idle_after_reset_is_current_not_stale(tmp_path, monkeypatch):
+    now = [2_000_000_000.0]
+    five_hour_reset = now[0] + 5 * 3600
+    weekly_reset = now[0] + 4 * 86400 + 12 * 3600
+    allowance = {
+        "tier": "Muse Code High Usage",
+        "window": {"usedPercent": 60, "resetsAtMs": int(five_hour_reset * 1000)},
+        "weekly": {"usedPercent": 10, "resetsAtMs": int(weekly_reset * 1000)},
+        "source": "mint",
+    }
+    svc, r = muse_world(
+        tmp_path,
+        ok(json.dumps({"allowance": allowance})),
+        clock=lambda: now[0],
+    )
+    monkeypatch.setattr(svc.adapter("muse"), "live_email", lambda: "muse@example.com")
+
+    signed_in = svc.usage("muse", refresh=True)
+    assert signed_in.state is UsageState.AVAILABLE
+
+    r.on(
+        MUSE,
+        "usage",
+        "--json",
+        result=ok(json.dumps({"allowance": None, "reason": "server_sent_no_usage"})),
+    )
+    now[0] = five_hour_reset + 1
+    idle = svc.usage("muse", refresh=True)
+    assert idle.state is UsageState.IDLE
+    five_hour, weekly = idle.windows
+    assert (five_hour.used_percent, five_hour.remaining, five_hour.resets_at) == (
+        0.0,
+        100.0,
+        None,
+    )
+    assert (weekly.used_percent, weekly.resets_at) == (10.0, weekly_reset)
+    assert "idle since" in (idle.hint or "")
+    assert idle.observed_at == now[0]
 
 
 def test_no_earlier_data_means_a_plain_error_not_stale(tmp_path):
