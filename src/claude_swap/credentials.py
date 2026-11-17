@@ -1165,6 +1165,7 @@ class CredentialStore:
         moved generation rather than consuming a stale snapshot).
         """
         key = (str(account_num), email)
+        hit = None
         if cached:
             generation = self._registry_generation()
             now = time.monotonic()
@@ -1181,6 +1182,16 @@ class CredentialStore:
                 epoch = self._backup_read_cache_epoch
         deadline = self._keychain_disabled_until
         if deadline and time.monotonic() < deadline:
+            # A display read whose last success is under TTL + cooldown old
+            # keeps that value: the cooldown only stops probing, it says
+            # nothing new about this slot, and the TTL bound grows by at most
+            # one cooldown.
+            if (
+                hit is not None
+                and now - hit[1]
+                < BACKUP_READ_CACHE_TTL_S + KEYCHAIN_RECHECK_COOLDOWN_S
+            ):
+                return hit[0]
             if self._backoff_announced_until != deadline:
                 self._backoff_announced_until = deadline
                 self._host._logger.info(
