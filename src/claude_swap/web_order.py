@@ -81,7 +81,7 @@ def _tool_score(account):
     return 1, min(binding, default=float("inf")), 0, str(account.get("alias", ""))
 
 
-def order_accounts(tool, accounts, *, strategy="best", models=(), account_windows=("5h", "7d")):
+def order_accounts(tool, accounts, *, strategy="consume-first", models=(), account_windows=("5h", "7d")):
     """Return ranked account copies. Unknown data and Claude sentinels sort last."""
     key = (lambda a: _claude_score(a, models, account_windows, strategy)) if tool == "claude" else _tool_score
     ordered = sorted(accounts, key=key)
