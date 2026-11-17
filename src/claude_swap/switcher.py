@@ -137,6 +137,9 @@ def _pace_marker(window: dict, fetched_at: float | None) -> str:
     return "  (ahead of pace)" if result and result.ahead else ""
 
 
+_SPEND_WORDS = {"use_now": "USE NOW", "next": "next", "blocked": "blocked"}
+
+
 def _format_usage_lines(usage: dict, fetched_at: float | None = None) -> list[str]:
     # Collect (label, body) rows first, then pad every label to the widest one so
     # per-model names (e.g. "Fable") don't shift the columns of the other lines.
@@ -6202,6 +6205,12 @@ class ClaudeAccountSwitcher:
                 markers += f" {bold_accent('(active)')}"
             if self._disabled_from_data(seq_data, str(num)):
                 markers += f" {muted('(disabled)')}"
+            spend = plan.get(num)
+            if spend is not None and spend.state in _SPEND_WORDS:
+                markers += f" {bold_accent(_SPEND_WORDS[spend.state])}"
+            if spend is not None and spend.waste_pct and spend.weekly_resets_at:
+                hours = max(0, int((spend.weekly_resets_at - now_s) // 3600))
+                markers += f" {bold_accent(f'{spend.waste_pct}% lost at reset in {hours}h')}"
             print(f"  {num}: {label} {muted(f'[{tag}]')}{markers}")
             for line in _usage_entry_lines(entries[str(num)]):
                 print(f"     {line}")

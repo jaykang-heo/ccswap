@@ -105,3 +105,18 @@ def test_every_view_lists_accounts_in_the_order_auto_switch_spends_them(temp_hom
     h.tick_with_usage(usage)
     sw = next(e for e in h.events if isinstance(e, SwitchEvent))
     assert str(sw.to_ref["number"]) == snapshot[0], "the top row is not where auto-switch goes"
+
+
+def test_human_list_marks_use_now_and_the_quota_lost_at_reset(temp_home, capsys):
+    from tests.test_autoswitch import _entry_for
+
+    h = _harness(temp_home, "2", strategy=DEFAULT)
+    now = h.clock.now
+    usage = {n: _usage(0.0, None, p7, now + hrs * H) for n, (p7, hrs) in FLEET.items()}
+    entries = {n: _entry_for(v, now) for n, v in usage.items()}
+    with patch.object(h.switcher, "_collect_usage_entries", return_value=entries), \
+            patch("claude_swap.switcher.time.time", return_value=now):
+        h.switcher.list_accounts()
+    out = capsys.readouterr().out
+    line = next(l for l in out.splitlines() if l.startswith("  4:"))
+    assert "USE NOW" in line and "29% lost at reset in 11h" in line
