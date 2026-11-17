@@ -72,7 +72,7 @@ def spend_plan(
             if label.lower() in gating and w.get("pct") is not None
             and float(w["pct"]) >= min(100.0, gates.for_label(label))
         ]
-        facts.append((row, usage, _tones(usage, gates), _ts(weekly.get("resets_at")),
+        facts.append((row, usage, _tones(usage, gates, gating), _ts(weekly.get("resets_at")),
                       None if pct is None else max(0.0, 100.0 - float(pct)), over))
 
     def unknown(row, usage):
@@ -114,14 +114,15 @@ def _windows(usage: dict) -> list[tuple[str, dict]]:
     return out
 
 
-def _tones(usage: dict, gates: GateThresholds) -> dict[str, Tone]:
+def _tones(usage: dict, gates: GateThresholds, gating: set[str]) -> dict[str, Tone]:
     tones: dict[str, Tone] = {}
     for label, w in _windows(usage):
         pct = w.get("pct")
         if pct is None:
             continue
         pct = float(pct)
-        if pct >= 100.0:
+        gate = gates.for_label(label)
+        if pct >= 100.0 or (label.lower() in gating and pct >= gate):
             tones[label] = "limit"
         elif pct >= gates.for_label(label) - NEAR_BELOW_GATE_PCT:
             tones[label] = "near"

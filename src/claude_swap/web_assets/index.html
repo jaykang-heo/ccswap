@@ -147,7 +147,7 @@ function percent(w){if(typeof w.usedPercent==="number")return w.usedPercent;if(t
 function shortLabel(w){return String(w.label||w.key||"use").replace(/^(five|5).hour( window)?$/i,"5h").replace(/^(seven.day|weekly)( window)?$/i,"7d").replace(/^(monthly|plan)( credits)?$/i,"credits")}
 function fillClass(p){return "fill "+(p>=100?"danger":p>=90?"warn":"calm")}
 var TONE={limit:"fill danger",near:"fill warn",plain:"fill calm"};
-function windowFill(w,a){var sp=a.spend;if(!sp)return fillClass(w.pct);if(w.label==="7d"){if(sp.state==="use_now")return"fill use";if(sp.state==="blocked")return"fill danger"}var t=sp.tones&&sp.tones[w.label];return t?TONE[t]:fillClass(w.pct)}
+function windowFill(w,a){var sp=a.spend;if(!sp)return fillClass(w.pct);if(w.label==="7d"&&sp.state==="use_now")return"fill use";var t=sp.tones&&sp.tones[w.label];return t?TONE[t]:fillClass(w.pct)}
 
 // ---- model: one shape for every tool and every concept ----
 function rawWindows(usage,tool){var out=(usage.windows||[]).slice();if(tool==="claude"){if(usage.fiveHour)out.push({label:"5h",usedPercent:usage.fiveHour.pct,resetsAt:usage.fiveHour.resetsAt});if(usage.sevenDay)out.push({label:"7d",usedPercent:usage.sevenDay.pct,resetsAt:usage.sevenDay.resetsAt});(usage.scoped||[]).forEach(function(w){out.push({label:w.name,usedPercent:w.pct,resetsAt:w.resetsAt})})}return out}

@@ -281,8 +281,6 @@ def spend_color(acc: AccountSnapshot, label: str, palette: Palette) -> str | Non
         return None
     if label == "7d" and spend.state == "use_now":
         return palette.accent
-    if label == "7d" and spend.state == "blocked":
-        return palette.sev_crit
     tone = spend.tones.get(label)
     return {"limit": palette.sev_crit, "near": palette.sev_warn, "plain": palette.muted}.get(tone or "")
 

@@ -132,3 +132,10 @@ def test_blocked_until_counts_every_window_that_keeps_it_unlandable():
     rows = [_row(1, 100, 1.0, 99, 110), _row(2, 10, 4.0, 40, 100)]
     plan = _plan(rows)
     assert plan[1].blocked_until == NOW + 110 * H
+
+
+def test_red_marks_the_window_that_blocks_not_the_weekly_bar_of_a_blocked_account():
+    rows = [_row(1, 99, 2.9, 87, 9.7), _row(2, 10, 4.0, 40, 100)]
+    plan = _plan(rows)
+    assert plan[1].state == "blocked"
+    assert plan[1].tones == {"5h": "limit", "7d": "plain"}
