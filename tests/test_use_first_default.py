@@ -120,3 +120,14 @@ def test_human_list_marks_use_now_and_the_quota_lost_at_reset(temp_home, capsys)
     out = capsys.readouterr().out
     line = next(l for l in out.splitlines() if l.startswith("  4:"))
     assert "USE NOW" in line and "29% lost at reset in 11h" in line
+
+
+def test_tui_switch_key_picks_the_account_auto_switch_would_spend(tmp_path):
+    from claude_swap.tui.app import CswapApp
+    from tests.test_tui import FakeSwitcher
+
+    app = CswapApp(FakeSwitcher([], tmp_path), codex_switcher=FakeSwitcher([], tmp_path))
+    started = []
+    app._start_action = lambda label, fn, **kw: started.append(fn)
+    app.do_switch_best("claude")
+    assert started[0].keywords["strategy"] == "consume-first"

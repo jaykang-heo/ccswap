@@ -477,7 +477,7 @@ class CswapApp(App):
             else self.gettext("Switch (next)"),
             partial(
                 self.switcher_for(provider).switch,
-                strategy="best",
+                strategy=self._strategy_name if provider == "claude" else "best",
                 json_output=True,
             ),
         )
