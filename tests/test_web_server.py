@@ -599,7 +599,7 @@ def _page_credits(usage):
     node = shutil.which("node")
     if node is None:
         pytest.skip("node is not installed")
-    html = (Path(web_server.__file__).parent / "web_assets" / "index.html").read_text()
+    html = (Path(web_server.__file__).parent / "web_assets" / "index.html").read_text(encoding="utf-8")
     script = html.split("<script>", 1)[1].rsplit("</script>", 1)[0]
     script = script.replace("load();setInterval(load,POLL_MS);", "globalThis.__models=toolModels;return;")
     snap = {"claude": {"accounts": [{"email": "leo@example.com", "usage": usage}]}}
@@ -607,7 +607,7 @@ def _page_credits(usage):
         "globalThis.document={addEventListener(){}};" + script
         + ";process.stdout.write(JSON.stringify(globalThis.__models(" + json.dumps(snap) + ")[0].accounts[0].credits))"
     )
-    out = subprocess.run([node, "-e", program], capture_output=True, text=True, check=True)
+    out = subprocess.run([node, "-e", program], capture_output=True, encoding="utf-8", check=True)
     return json.loads(out.stdout)
 
 
@@ -619,5 +619,5 @@ def test_fable_reset_credits_stay_off_the_page():
 
 def test_a_fully_spent_tool_is_not_folded_into_one_line():
     """Every account row shows even when all logins of a tool are spent (2026-11-20)."""
-    html = (Path(web_server.__file__).parent / "web_assets" / "index.html").read_text()
+    html = (Path(web_server.__file__).parent / "web_assets" / "index.html").read_text(encoding="utf-8")
     assert "logins spent" not in html and "renderSpentTool" not in html
