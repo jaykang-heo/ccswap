@@ -590,3 +590,34 @@ def test_a_row_served_from_recent_last_good_usage_is_not_stale():
 def test_a_row_whose_last_good_usage_is_old_is_stale_with_its_age():
     [model] = _page_models([_claude_row(usageStatus="keychain_unavailable", lastGoodAgeSeconds=1000.0)])
     assert model == {"stale": True, "age": 1000.0}
+
+
+def _page_credits(usage):
+    """Run the page's own model code in node and return the first account's credit chips."""
+    import shutil
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    html = (Path(web_server.__file__).parent / "web_assets" / "index.html").read_text()
+    script = html.split("<script>", 1)[1].rsplit("</script>", 1)[0]
+    script = script.replace("load();setInterval(load,POLL_MS);", "globalThis.__models=toolModels;return;")
+    snap = {"claude": {"accounts": [{"email": "leo@example.com", "usage": usage}]}}
+    program = (
+        "globalThis.document={addEventListener(){}};" + script
+        + ";process.stdout.write(JSON.stringify(globalThis.__models(" + json.dumps(snap) + ")[0].accounts[0].credits))"
+    )
+    out = subprocess.run([node, "-e", program], capture_output=True, text=True, check=True)
+    return json.loads(out.stdout)
+
+
+def test_fable_reset_credits_stay_off_the_page():
+    """The captain asked to hide Fable reset credits (2026-11-20); plain reset credits still show."""
+    usage = {"fiveHour": {"pct": 10}, "resetCredits": {"available": 2}, "fableResetCredits": {"available": 3}}
+    assert _page_credits(usage) == ["↺2"]
+
+
+def test_a_fully_spent_tool_is_not_folded_into_one_line():
+    """Every account row shows even when all logins of a tool are spent (2026-11-20)."""
+    html = (Path(web_server.__file__).parent / "web_assets" / "index.html").read_text()
+    assert "logins spent" not in html and "renderSpentTool" not in html
