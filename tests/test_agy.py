@@ -859,7 +859,9 @@ def test_expired_journal_cleanup_failure_keeps_intent_without_attempt(provider, 
     assert pending.get("attemptedAt") is None and pending.get("error") is None
     assert account.usage.recovery is not None
     assert json.loads(Path(account.usage.recovery.path).read_text()) == auth()
-    assert agy.AgyAccountSwitcher().accounts_snapshot(fetch=set()).accounts[0].switchable is False
+    # The retained copy is the untouched saved credential, so the next pass heals it.
+    healed = agy.AgyAccountSwitcher().accounts_snapshot(fetch=set()).accounts[0]
+    assert healed.switchable is True and healed.usage.recovery is None
 
 
 def test_success_saves_then_clears_intent_before_temp_cleanup(provider, monkeypatch):
@@ -1055,3 +1057,30 @@ async def test_dashboard_shows_pending_recovery_with_cached_quota(provider, monk
         assert account.usage.recovery.path in panel
         assert "Gemini Models" in panel
         app.save_screenshot(f"agy-recovery-{'full' if active else 'compact'}.svg", path=str(tmp_path))
+
+
+def test_interrupted_refresh_with_untouched_copy_heals_and_refetches(provider, monkeypatch):
+    # A killed usage refresh leaves its journal behind; the retained copy is the
+    # saved credential itself, so nothing needs recovering and usage resumes.
+    two_accounts(provider)
+    provider.accounts_snapshot()
+    saved = json.loads(provider._credential_path("1").read_text())
+    retained = provider.backup_dir.parent / "killed-refresh" / agy._RELATIVE_AUTH
+    provider._write(retained, saved)
+    cache_path = provider.backup_dir / "usage-1.json"
+    cached = json.loads(cache_path.read_text())
+    cached["recovery"] = {"kind": "refresh-persistence", "path": str(retained.absolute())}
+    provider._write(cache_path, cached)
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        return SimpleNamespace(returncode=0, stdout=json.dumps(quota()))
+
+    monkeypatch.setattr(agy.spawn, "run", run)
+    account = agy.AgyAccountSwitcher().accounts_snapshot(fetch={"1"}).accounts[0]
+    assert account.usage.recovery is None
+    assert account.usage.last_error is None
+    assert account.switchable is True
+    assert calls, "usage was not fetched again after the no-op recovery healed"
+    assert json.loads(cache_path.read_text())["recovery"] is None

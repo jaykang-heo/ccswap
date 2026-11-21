@@ -549,6 +549,27 @@ class AgyAccountSwitcher:
         self._validate_cache(cached)
         return cached
 
+    def _heal_noop_recovery(self, number: str, cached: dict) -> None:
+        """Clear a recovery whose retained copy is the saved credential itself.
+
+        An interrupted refresh (process killed between journal and finalize)
+        leaves the journal pointing at a copy no token rotation touched. Nothing
+        is lost by dropping it, and holding it would freeze usage until a manual
+        re-add. A copy that differs, is missing, or is unreadable stays pending.
+        """
+        recovery = cached["recovery"]
+        if recovery is None:
+            return
+        try:
+            retained = Credential.parse(_json_file(Path(recovery["path"])))
+            saved = Credential.parse(_json_file(self._credential_path(number)))
+        except (AgyError, OSError, ValueError):
+            return
+        if retained.document != saved.document:
+            return
+        cached.update(recovery=None, error=None, attemptedAt=None)
+        self._write(self.backup_dir / f"usage-{number}.json", cached)
+
     def _record_recovery(self, number: str, cached: dict, recovery: UsageRecovery) -> None:
         cached.update(recovery={"kind": recovery.kind, "path": recovery.path},
                       error="Antigravity usage unavailable")
@@ -647,6 +668,7 @@ class AgyAccountSwitcher:
             for number in ordered:
                 account, cached = data["accounts"][number], caches[number]
                 credential = None
+                self._heal_noop_recovery(number, cached)
                 if cached["recovery"] is None:
                     saved = self._saved(number, data)
                     credential = login.credential if number == active and login else saved
