@@ -1,3 +1,5 @@
+> **Moved (2026-11-26):** ccswap now lives in jstack at `vendor/ccswap` (jstack decision 0080) and is installed by `jst maintain sync`. This repo is archived; its last change (#44) is carried in jaykang-heo/jstack#2339.
+
 # ccswap (Claude Codex Swap)
 
 [![CI](https://github.com/errhythm/ccswap/actions/workflows/ci.yml/badge.svg)](https://github.com/errhythm/ccswap/actions/workflows/ci.yml)
